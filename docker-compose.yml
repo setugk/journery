@@ -10,3 +10,4 @@ services:
     environment:
       - CLIPPERY_USER=admin
       - CLIPPERY_PASS=changeme
+      - CLIPPERY_MAX=25   # default history limit; overridable from the UI

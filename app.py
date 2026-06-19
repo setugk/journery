@@ -6,7 +6,8 @@ from flask import Flask, request, jsonify, Response
 
 app = Flask(__name__)
 DATA_FILE = "/data/history.json"
-MAX_HISTORY = 25
+SETTINGS_FILE = "/data/settings.json"
+DEFAULT_MAX = int(os.environ.get("CLIPPERY_MAX", 25))
 
 CLIPPERY_USER = os.environ.get("CLIPPERY_USER")
 CLIPPERY_PASS = os.environ.get("CLIPPERY_PASS")
@@ -36,6 +37,18 @@ def write_history(history):
     os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
     with open(DATA_FILE, "w") as f:
         json.dump(history, f)
+
+def read_settings():
+    try:
+        with open(SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {"max": DEFAULT_MAX}
+
+def write_settings(settings):
+    os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f)
 
 PAGE = """<!DOCTYPE html>
 <html lang="en">
@@ -75,6 +88,49 @@ body {
   border-radius: 10px;
 }
 .bar-title { font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }
+.bar-actions { margin-left: auto; display: flex; align-items: center; }
+
+.settings-btn {
+  position: relative;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  background: none; border: none; cursor: pointer;
+  color: #A3A3A3; border-radius: 8px;
+  transition: background 0.1s, color 0.1s;
+}
+.settings-btn:hover { background: #F0F0F0; color: #111; }
+
+.settings-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #fff;
+  border: 1.5px solid #E5E5E5;
+  border-radius: 10px;
+  padding: 6px;
+  min-width: 160px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  z-index: 200;
+}
+.settings-dropdown.open { display: block; }
+.settings-dropdown-label {
+  font-size: 10px; font-weight: 600; color: #A3A3A3;
+  text-transform: uppercase; letter-spacing: 0.07em;
+  padding: 4px 8px 6px;
+}
+.settings-option {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; padding: 7px 10px;
+  border-radius: 6px; border: none; background: none;
+  font-size: 13px; font-family: inherit; color: #111;
+  cursor: pointer; text-align: left;
+  transition: background 0.08s;
+}
+.settings-option:hover { background: #F5F5F5; }
+.settings-option .opt-check { visibility: hidden; color: #111; }
+.settings-option.active { font-weight: 600; }
+.settings-option.active .opt-check { visibility: visible; }
 
 /* Layout */
 .main {
@@ -349,7 +405,20 @@ textarea::placeholder { color: #C4C4C4; }
 </head>
 <body>
 
-<div class="bar"><span class="bar-title">Clippery</span></div>
+<div class="bar">
+  <span class="bar-title">Clippery</span>
+  <div class="bar-actions">
+    <button class="settings-btn" id="settings-btn" title="Settings">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <div class="settings-dropdown" id="settings-dropdown">
+        <div class="settings-dropdown-label">History limit</div>
+        <button class="settings-option" data-max="25">25 clips <span class="opt-check">✓</span></button>
+        <button class="settings-option" data-max="50">50 clips <span class="opt-check">✓</span></button>
+        <button class="settings-option" data-max="0">Unlimited <span class="opt-check">✓</span></button>
+      </div>
+    </button>
+  </div>
+</div>
 
 <div class="main">
   <!-- History (left) -->
@@ -389,6 +458,7 @@ textarea::placeholder { color: #C4C4C4; }
 
 <script>
 let HISTORY = __HISTORY_JSON__;
+let SETTINGS = __SETTINGS_JSON__;
 let selectedTs = null;
 
 const ta          = document.getElementById('textarea');
@@ -572,6 +642,44 @@ setInterval(async () => {
     }
   } catch(_) {}
 }, 2000);
+
+// Settings
+const settingsBtn      = document.getElementById('settings-btn');
+const settingsDropdown = document.getElementById('settings-dropdown');
+
+function updateSettingsUI() {
+  const cur = SETTINGS.max;
+  document.querySelectorAll('.settings-option').forEach(btn => {
+    const active = parseInt(btn.dataset.max) === cur;
+    btn.classList.toggle('active', active);
+  });
+}
+
+settingsBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  settingsDropdown.classList.toggle('open');
+});
+
+document.addEventListener('click', () => settingsDropdown.classList.remove('open'));
+
+document.querySelectorAll('.settings-option').forEach(btn => {
+  btn.addEventListener('click', async e => {
+    e.stopPropagation();
+    const max = parseInt(btn.dataset.max);
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({max})
+      });
+      SETTINGS = await res.json();
+      updateSettingsUI();
+    } catch(_) {}
+    settingsDropdown.classList.remove('open');
+  });
+});
+
+updateSettingsUI();
 </script>
 </body>
 </html>"""
@@ -581,7 +689,8 @@ setInterval(async () => {
 def index():
     history = read_history()
     history_json = json.dumps(history).replace("</", "<\\/")
-    return PAGE.replace("__HISTORY_JSON__", history_json)
+    settings_json = json.dumps(read_settings())
+    return PAGE.replace("__HISTORY_JSON__", history_json).replace("__SETTINGS_JSON__", settings_json)
 
 @app.route("/api/history", methods=["GET"])
 @requires_auth
@@ -596,7 +705,9 @@ def share():
     history = read_history()
     if text:
         history.insert(0, {"text": text, "ts": datetime.now(timezone.utc).isoformat()})
-        history = history[:MAX_HISTORY]
+        max_h = read_settings().get("max", DEFAULT_MAX)
+        if max_h > 0:
+            history = history[:max_h]
         write_history(history)
     return jsonify({"history": history})
 
@@ -614,6 +725,21 @@ def delete_item():
 def clear_history():
     write_history([])
     return jsonify({"history": []})
+
+@app.route("/api/settings", methods=["GET"])
+@requires_auth
+def api_settings():
+    return jsonify(read_settings())
+
+@app.route("/api/settings", methods=["POST"])
+@requires_auth
+def update_settings():
+    data = request.get_json(silent=True) or {}
+    settings = read_settings()
+    if "max" in data:
+        settings["max"] = int(data["max"])
+    write_settings(settings)
+    return jsonify(settings)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
