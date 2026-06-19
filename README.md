@@ -19,43 +19,45 @@ Clippery is the fix. Open it on any device, paste your text, and it's instantly 
 - Auto-syncs across all open tabs every 2 seconds — no refresh needed
 - Works on desktop and mobile
 
-## Stack
+## Getting started
 
-Single Python file. Flask backend, vanilla JS frontend — no build step, no bundler, no CDN dependencies. History stored as a JSON file on disk.
+You'll need [Docker](https://docs.docker.com/get-docker/) installed. That's the only dependency.
 
-## Run it
+**1. Clone the repo**
+```bash
+git clone https://github.com/setugk/clippery.git
+cd clippery
+```
 
+**2. Set a username and password**
+
+Open `docker-compose.yml` in any text editor and replace the placeholder values:
+```yaml
+environment:
+  - CLIPPERY_USER=admin       # change this
+  - CLIPPERY_PASS=changeme    # change this
+```
+
+**3. Start it**
 ```bash
 docker compose up -d
 ```
 
-That's it. Open `http://localhost:5050`.
+**4. Open it**
 
-```yaml
-# docker-compose.yml
-services:
-  clipboard:
-    build: .
-    container_name: clipboard
-    restart: unless-stopped
-    ports:
-      - "5050:5000"
-    volumes:
-      - ./data:/data
-    environment:
-      - CLIPPERY_USER=admin
-      - CLIPPERY_PASS=changeme
-```
+Go to `http://localhost:5050` in your browser. You'll be prompted for the username and password you just set.
 
-## Authentication
+That's it. Open the same URL on any other device on your network and your clipboard is shared between them.
 
-Set `CLIPPERY_USER` and `CLIPPERY_PASS` in your `docker-compose.yml` to enable HTTP basic auth. The browser will prompt for credentials on first visit.
+---
 
-If neither variable is set, the app runs without auth — fine if you're behind Cloudflare Access or another reverse proxy that handles it.
+**Want to access it from anywhere — not just your home network?**
 
-## Remote access (optional)
+Put it behind a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/). It's free, takes about 10 minutes to set up, and gives you a public URL like `clippery.yourdomain.com` that works from any device, anywhere.
 
-If you want to access it from outside your home network, put it behind a [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) with a Zero Trust Access policy. That way you get your own `clippery.yourdomain.com` with email OTP authentication — no passwords to manage, no port forwarding.
+## Stack
+
+Single Python file. Flask backend, vanilla JS frontend — no build step, no bundler, no CDN dependencies. History stored as a JSON file on disk.
 
 ## License
 
