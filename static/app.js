@@ -1070,10 +1070,10 @@ function renderNotesList() {
     );
   }
 
-  if (!subfolders.length && !notes.length) {
-    notesList.innerHTML = state.context.type === "search"
-      ? `<div class="notes-empty">No results for “${esc(state.searchQuery)}”.</div>`
-      : `<div class="notes-empty">No notes yet.<br>Tap <strong>+</strong> to create one.</div>`;
+  if (!subfolders.length && !notes.length && !state.tagTrashedNotes.length) {
+    notesList.innerHTML = state.context.type === “search”
+      ? `<div class=”notes-empty”>No results for “${esc(state.searchQuery)}”.</div>`
+      : `<div class=”notes-empty”>No notes yet.<br>Tap <strong>+</strong> to create one.</div>`;
     return;
   }
 
