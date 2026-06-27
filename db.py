@@ -274,11 +274,21 @@ def delete_note(note_id):
     conn.close()
 
 
-def get_trash():
+def get_trash(tag=None):
     conn = get_conn()
-    rows = conn.execute(
-        "SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
-    ).fetchall()
+    if tag:
+        rows = conn.execute(
+            "SELECT DISTINCT n.* FROM notes n "
+            "JOIN note_tags nt ON n.id=nt.note_id "
+            "JOIN tags t ON nt.tag_id=t.id "
+            "WHERE n.deleted_at IS NOT NULL AND t.name=? "
+            "ORDER BY n.deleted_at DESC",
+            (tag,)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM notes WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC"
+        ).fetchall()
     notes = []
     for row in rows:
         n = dict(row)
@@ -355,8 +365,11 @@ def rename_tag(old_name, new_name):
 def get_tags():
     conn = get_conn()
     rows = conn.execute(
-        "SELECT t.name, COUNT(nt.note_id) as count FROM tags t "
-        "LEFT JOIN note_tags nt ON t.id=nt.tag_id GROUP BY t.id ORDER BY t.name"
+        "SELECT t.name, COUNT(CASE WHEN n.deleted_at IS NULL THEN 1 END) as count "
+        "FROM tags t "
+        "LEFT JOIN note_tags nt ON t.id=nt.tag_id "
+        "LEFT JOIN notes n ON nt.note_id=n.id "
+        "GROUP BY t.id ORDER BY t.name"
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]

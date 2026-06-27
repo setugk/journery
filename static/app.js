@@ -30,6 +30,7 @@ const state = {
   selectMode: false,
   selectedNoteIds: new Set(),
   trashCount: 0,
+  tagTrashedNotes: [],
 };
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
@@ -880,6 +881,7 @@ async function loadAll() {
 async function loadNotes() {
   if (state.context.type === "trash") {
     state.notes = await api("GET", "/api/trash");
+    state.tagTrashedNotes = [];
     renderNotesList();
     return;
   }
@@ -889,7 +891,17 @@ async function loadNotes() {
   if (state.context.type === "year")   params.set("year", state.context.id);
   if (state.searchQuery)               params.set("q", state.searchQuery);
 
-  state.notes = await api("GET", `/api/notes?${params}`);
+  if (state.context.type === "tag") {
+    const [liveNotes, trashedNotes] = await Promise.all([
+      api("GET", `/api/notes?${params}`),
+      api("GET", `/api/trash?tag=${encodeURIComponent(state.context.id)}`),
+    ]);
+    state.notes = liveNotes;
+    state.tagTrashedNotes = trashedNotes;
+  } else {
+    state.tagTrashedNotes = [];
+    state.notes = await api("GET", `/api/notes?${params}`);
+  }
   renderNotesList();
 }
 
@@ -1101,6 +1113,22 @@ function renderNotesList() {
       </div>`;
   }).join("");
 
+  if (state.tagTrashedNotes.length) {
+    html += `<div class="notes-section-label notes-trash-divider">In Trash</div>`;
+    html += state.tagTrashedNotes.map(n => {
+      const preview = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+      return `
+        <div class="note-item note-item-trashed" data-note-id="${n.id}">
+          <div class="note-item-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
+          ${preview ? `<div class="note-item-preview">${esc(preview)}</div>` : ""}
+          <div class="note-item-meta note-item-meta-trash">
+            <span>In Trash</span>
+            <button class="tag-trash-restore-btn" data-id="${n.id}">Restore</button>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
   notesList.innerHTML = html;
 
   const subfToggle = $("subfolder-toggle");
@@ -1143,6 +1171,17 @@ function renderNotesList() {
         openNote(n);
       }
     });
+  });
+
+  notesList.querySelectorAll(".note-item-trashed").forEach(el => {
+    el.addEventListener("click", e => {
+      if (e.target.closest(".tag-trash-restore-btn")) return;
+      const n = state.tagTrashedNotes.find(n => n.id === el.dataset.noteId);
+      if (n) openNote(n);
+    });
+  });
+  notesList.querySelectorAll(".tag-trash-restore-btn").forEach(btn => {
+    btn.addEventListener("click", e => { e.stopPropagation(); restoreNote(btn.dataset.id); });
   });
 }
 

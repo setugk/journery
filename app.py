@@ -19,7 +19,7 @@ def requires_auth(f):
             if not auth or auth.username != CLIPPERY_USER or auth.password != CLIPPERY_PASS:
                 return Response(
                     "Authentication required.", 401,
-                    {"WWW-Authenticate": 'Basic realm="Clippery"'}
+                    {"WWW-Authenticate": 'Basic realm="Kathe"'}
                 )
         return f(*args, **kwargs)
     return decorated
@@ -134,7 +134,8 @@ def delete_note(note_id):
 @app.route("/api/trash", methods=["GET"])
 @requires_auth
 def list_trash():
-    return jsonify(db.get_trash())
+    tag = request.args.get("tag")
+    return jsonify(db.get_trash(tag=tag))
 
 
 @app.route("/api/notes/<note_id>/restore", methods=["POST"])
@@ -200,7 +201,7 @@ def import_backup():
 def export_data():
     data = db.export_all()
     data["exported_at"] = db.now()
-    filename = f"clippery-{data['exported_at'][:10]}.json"
+    filename = f"kathe-{data['exported_at'][:10]}.json"
     return Response(
         json.dumps(data, indent=2, ensure_ascii=False),
         mimetype="application/json",
