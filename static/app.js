@@ -354,7 +354,6 @@ function closeSettings() {
 }
 
 function openSettings() {
-  $("settings-dark-toggle").classList.toggle("on", state.darkMode);
   $("settings-folders-toggle").classList.toggle("on", state.showFolders);
   updateDatePicker();
   updateRecentsRangePicker();
@@ -513,10 +512,6 @@ function renderSettingsTags() {
 }
 
 $("settings-btn").addEventListener("click", openSettings);
-$("settings-dark-toggle").addEventListener("click", () => {
-  applyDark(!state.darkMode);
-  $("settings-dark-toggle").classList.toggle("on", state.darkMode);
-});
 $("settings-folders-toggle").addEventListener("click", () => {
   state.showFolders = !state.showFolders;
   localStorage.setItem("showFolders", state.showFolders);
