@@ -29,22 +29,59 @@
       deleted_at: null, tags: normTags(tags),
     });
     const notes = [
-      mk("Welcome to the Journery demo 👋",
-         "This is a live demo of Journery.\n\n" +
-         "Everything you do here is saved only in *your* browser — nothing is sent to a server and nothing is shared with anyone else. Refreshing keeps your changes; other people see their own copy.\n\n" +
-         "Try it out: create notes, add tags, make folders, search, drop things in the Trash. When you want a clean slate, open Settings → Data → Reset demo data.\n\n" +
-         "Install it as an app\n\n" +
-         "Journery works as a home-screen app (PWA) — full screen, no browser bar.\n\n" +
-         "On iPhone / iPad (Safari):\n" +
-         "- Tap the Share button (the square with an upward arrow)\n" +
-         "- Scroll down and tap \"Add to Home Screen\"\n" +
-         "- Tap Add\n\n" +
-         "On Android (Chrome):\n" +
-         "- Tap the ⋮ menu (top-right)\n" +
-         "- Tap \"Add to Home screen\" (or \"Install app\")\n" +
-         "- Tap Install / Add\n\n" +
-         "Tip: the installed app keeps its own separate copy of your notes, so it may start fresh from the sample content.",
+      mk("Start here — what is Journery? 👋",
+         "Journery is a calm home for your notes and journal.<br><br>" +
+         "Write freely, organise with <b>folders</b> and <b>tags</b>, and find anything fast with search. It runs in any browser and installs as an app on your phone.<br><br>" +
+         "These <b>#getting-started</b> notes walk through the main features — tap the tag below to see them all together, in order.<br><br>" +
+         "About this demo: everything you do is saved only in <b>your</b> browser — nothing is sent anywhere or shared with anyone. Want a clean slate? Open <b>Settings → Data → Reset demo data</b>.",
          null, ["getting-started"], "2026-07-01T09:00:00.000Z"),
+      mk("Writing notes & formatting",
+         "Give a note a <b>title</b> at the top, then just start writing below.<br><br>" +
+         "Select any text to pop up a <b>formatting bar</b> — bold, italic, underline, strikethrough, code, and lists.<br><br>" +
+         "Handy keyboard shortcuts (use Ctrl on Windows):" +
+         "<ul><li><b>⌘B</b> / <b>⌘I</b> / <b>⌘U</b> — bold, italic, underline</li>" +
+         "<li><b>⌘⇧X</b> — strikethrough</li>" +
+         "<li><b>⌘⇧C</b> — code</li></ul>" +
+         "Everything saves automatically as you type — no save button needed.",
+         null, ["getting-started"], "2026-07-01T08:55:00.000Z"),
+      mk("Tags",
+         "Tags keep related notes together without moving them into folders.<br><br>" +
+         "Under the title, tap <b>+ add tag</b> and start typing — matching tags autocomplete as you go, and you can add as many as you like.<br><br>" +
+         "Tap any tag to see every note that has it. Use a tag a lot? <b>Pin</b> it to the top of the sidebar with the pin icon, so it's always one tap away.",
+         null, ["getting-started"], "2026-07-01T08:50:00.000Z"),
+      mk("Folders",
+         "Prefer folders? Journery has those too — and they nest as deep as you want.<br><br>" +
+         "Folders stay hidden until you turn them on: open <b>Settings → Sidebar → Show Folders</b>. This demo already has a couple (Journal and Ideas) to poke around in.<br><br>" +
+         "Create subfolders, move notes between them, and rearrange everything from the folder menu.",
+         null, ["getting-started"], "2026-07-01T08:45:00.000Z"),
+      mk("Finding your notes",
+         "A few ways to get back to any note:" +
+         "<ul><li><b>Search</b> — the box at the top of the sidebar searches titles and text</li>" +
+         "<li><b>Recents</b> — your latest notes; set the window to a day, week, or month in Settings</li>" +
+         "<li><b>Timeline</b> — browse everything by year</li></ul>" +
+         "You can also change the sort order from the notes-list header (newest, oldest, recently edited).",
+         null, ["getting-started"], "2026-07-01T08:40:00.000Z"),
+      mk("Trash",
+         "Deleting a note doesn't lose it right away.<br><br>" +
+         "Deleted notes go to the <b>Trash</b>, where you can <b>restore</b> them anytime. They're cleared automatically after 30 days.<br><br>" +
+         "Try it: delete this note, then open Trash and bring it back.",
+         null, ["getting-started"], "2026-07-01T08:35:00.000Z"),
+      mk("Themes",
+         "Make Journery yours. Open <b>Settings → Themes</b> for 20+ built-in looks — light and dark, from Solarized to Dracula to Everforest.<br><br>" +
+         "Picking a theme sets everything at once, including light or dark automatically. You can even import your own theme as a JSON file.",
+         null, ["getting-started"], "2026-07-01T08:30:00.000Z"),
+      mk("Install it as an app",
+         "Journery works as a home-screen app (PWA) — full screen, no browser bar.<br><br>" +
+         "<b>On iPhone / iPad (Safari):</b>" +
+         "<ul><li>Tap the Share button (the square with an upward arrow)</li>" +
+         "<li>Scroll down and tap \"Add to Home Screen\"</li>" +
+         "<li>Tap Add</li></ul>" +
+         "<b>On Android (Chrome):</b>" +
+         "<ul><li>Tap the ⋮ menu (top-right)</li>" +
+         "<li>Tap \"Add to Home screen\" (or \"Install app\")</li>" +
+         "<li>Tap Install / Add</li></ul>" +
+         "Tip: the installed app keeps its own separate copy, so it may start fresh from the sample notes.",
+         null, ["getting-started"], "2026-07-01T08:25:00.000Z"),
       mk("Morning pages",
          "Slow start today. Coffee, then twenty minutes of just writing whatever came to mind.\n\nNoticed I think more clearly on paper than on screen. Worth keeping this up.",
          journal.id, ["daily-journal"], "2026-06-30T07:30:00.000Z"),
