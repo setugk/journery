@@ -32,7 +32,18 @@
       mk("Welcome to the Journery demo 👋",
          "This is a live demo of Journery.\n\n" +
          "Everything you do here is saved only in *your* browser — nothing is sent to a server and nothing is shared with anyone else. Refreshing keeps your changes; other people see their own copy.\n\n" +
-         "Try it out: create notes, add tags, make folders, search, drop things in the Trash. When you want a clean slate, open Settings → Data → Reset demo data.",
+         "Try it out: create notes, add tags, make folders, search, drop things in the Trash. When you want a clean slate, open Settings → Data → Reset demo data.\n\n" +
+         "Install it as an app\n\n" +
+         "Journery works as a home-screen app (PWA) — full screen, no browser bar.\n\n" +
+         "On iPhone / iPad (Safari):\n" +
+         "- Tap the Share button (the square with an upward arrow)\n" +
+         "- Scroll down and tap \"Add to Home Screen\"\n" +
+         "- Tap Add\n\n" +
+         "On Android (Chrome):\n" +
+         "- Tap the ⋮ menu (top-right)\n" +
+         "- Tap \"Add to Home screen\" (or \"Install app\")\n" +
+         "- Tap Install / Add\n\n" +
+         "Tip: the installed app keeps its own separate copy of your notes, so it may start fresh from the sample content.",
          null, ["getting-started"], "2026-07-01T09:00:00.000Z"),
       mk("Morning pages",
          "Slow start today. Coffee, then twenty minutes of just writing whatever came to mind.\n\nNoticed I think more clearly on paper than on screen. Worth keeping this up.",
