@@ -31,8 +31,12 @@
     const notes = [
       mk("Start here — what is Journery? 👋",
          "Journery is a calm home for your notes and journal.<br><br>" +
-         "Write freely, organise with <b>folders</b> and <b>tags</b>, and find anything fast with search. It runs in any browser and installs as an app on your phone.<br><br>" +
-         "These <b>#getting-started</b> notes walk through the main features — tap the tag below to see them all together, in order.<br><br>" +
+         "Write freely, then organise however you think:" +
+         "<ul><li><b>Tags</b> — label notes like #daily-journal, #ideas, #travel, #recipes or #work, and pull them up with a tap</li>" +
+         "<li><b>Folders</b> — group bigger buckets, nested as deep as you want</li>" +
+         "<li><b>Search &amp; Timeline</b> — find anything by word, or browse by year</li></ul>" +
+         "It runs in any browser, syncs across your devices, and installs as an app on your phone.<br><br>" +
+         "These <b>#getting-started</b> notes walk through the main features — tap the tag below to see them all, in order.<br><br>" +
          "About this demo: everything you do is saved only in <b>your</b> browser — nothing is sent anywhere or shared with anyone. Want a clean slate? Open <b>Settings → Data → Reset demo data</b>.",
          null, ["getting-started"], "2026-07-01T09:00:00.000Z"),
       mk("Writing notes & formatting",
@@ -61,15 +65,20 @@
          "<li><b>Timeline</b> — browse everything by year</li></ul>" +
          "You can also change the sort order from the notes-list header (newest, oldest, recently edited).",
          null, ["getting-started"], "2026-07-01T08:40:00.000Z"),
+      mk("Sync across your devices",
+         "Journery keeps everything in one place, everywhere.<br><br>" +
+         "Open it on your laptop, phone, and tablet — write on one and it turns up on the others within seconds, automatically. No manual sync, no export/import shuffle. It even updates live between browser tabs.<br><br>" +
+         "(This is a browser-only demo, so each device keeps its own copy here — real cross-device sync kicks in once you're running your own Journery. See \"Host your own Journery\" below.)",
+         null, ["getting-started"], "2026-07-01T08:35:00.000Z"),
       mk("Trash",
          "Deleting a note doesn't lose it right away.<br><br>" +
          "Deleted notes go to the <b>Trash</b>, where you can <b>restore</b> them anytime. They're cleared automatically after 30 days.<br><br>" +
          "Try it: delete this note, then open Trash and bring it back.",
-         null, ["getting-started"], "2026-07-01T08:35:00.000Z"),
+         null, ["getting-started"], "2026-07-01T08:30:00.000Z"),
       mk("Themes",
          "Make Journery yours. Open <b>Settings → Themes</b> for 20+ built-in looks — light and dark, from Solarized to Dracula to Everforest.<br><br>" +
          "Picking a theme sets everything at once, including light or dark automatically. You can even import your own theme as a JSON file.",
-         null, ["getting-started"], "2026-07-01T08:30:00.000Z"),
+         null, ["getting-started"], "2026-07-01T08:25:00.000Z"),
       mk("Install it as an app",
          "Journery works as a home-screen app (PWA) — full screen, no browser bar.<br><br>" +
          "<b>On iPhone / iPad (Safari):</b>" +
@@ -81,22 +90,30 @@
          "<li>Tap \"Add to Home screen\" (or \"Install app\")</li>" +
          "<li>Tap Install / Add</li></ul>" +
          "Tip: the installed app keeps its own separate copy, so it may start fresh from the sample notes.",
-         null, ["getting-started"], "2026-07-01T08:25:00.000Z"),
+         null, ["getting-started"], "2026-07-01T08:20:00.000Z"),
+      mk("Host your own Journery",
+         "Like it? Journery is free and open-source — run your own copy so your notes live on <b>your</b> hardware, never someone else's server.<br><br>" +
+         "It's a single command with Docker, and:" +
+         "<ul><li>Your data stays in a folder <b>you</b> choose — your computer, a NAS, anywhere</li>" +
+         "<li>Add a password, or put it behind your own login</li>" +
+         "<li>Then reach it from every device, all in sync</li></ul>" +
+         "Grab it and the step-by-step setup at <b>github.com/setugk/journery</b>.",
+         null, ["getting-started"], "2026-07-01T08:15:00.000Z"),
       mk("Morning pages",
          "Slow start today. Coffee, then twenty minutes of just writing whatever came to mind.\n\nNoticed I think more clearly on paper than on screen. Worth keeping this up.",
-         journal.id, ["daily-journal"], "2026-06-30T07:30:00.000Z"),
+         journal.id, [], "2026-06-30T07:30:00.000Z"),
       mk("Weekend trip",
          "Drove up the coast. No plan, no schedule — the good kind of weekend.\n\n- Found a tiny bookshop\n- Best tacos in ages\n- Watched the sunset from the pier",
-         journal.id, ["daily-journal", "travel"], "2026-05-12T20:15:00.000Z"),
+         journal.id, [], "2026-05-12T20:15:00.000Z"),
       mk("App idea: offline-first notes",
          "Random ideas, unfiltered:\n\n- Offline-first sync with CRDTs\n- End-to-end encrypted notes — keys stay on device\n- Keyboard shortcuts for everything\n- Weekly digest: your notes from this week last year",
-         ideas.id, ["ideas", "product"], "2026-03-01T14:00:00.000Z"),
+         ideas.id, [], "2026-03-01T14:00:00.000Z"),
       mk("Books to read",
          "- A book on attention and focus\n- Something on systems thinking\n- A novel, for once\n\nStop buying faster than I read.",
-         null, ["reading"], "2025-11-20T21:00:00.000Z"),
+         null, [], "2025-11-20T21:00:00.000Z"),
       mk("Reflections on 2025",
          "A full year of writing here. Some entries are one line, some are pages. Both count.\n\nGoal for next year: show up more than I skip.",
-         journal.id, ["daily-journal"], "2025-12-31T23:00:00.000Z"),
+         journal.id, [], "2025-12-31T23:00:00.000Z"),
     ];
     // Pin #getting-started so the tutorial is front-and-centre in the sidebar.
     // Stored the same way the app persists pins: a JSON string under pinnedTags.
