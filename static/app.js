@@ -603,10 +603,11 @@ function renderAllTags() {
     const isActive = state.context.type === "tag" && state.context.id === tag.name;
     const btn = document.createElement("button");
     btn.className = "tag-nav-item" + (isActive ? " active" : "");
+    // Pin sits to the left, same as the Pinned section, for a consistent look.
     const pinBtn = isPinned
-      ? `<button class="tag-pin-btn pinned" title="Unpin">${PIN_SVG}</button>`
-      : `<button class="tag-pin-btn" title="Pin">${PIN_OUTLINE_SVG}</button>`;
-    btn.innerHTML = `<span class="tag-hash">#</span>${esc(tag.name)}<span class="tag-right">${pinBtn}<span class="tag-count">${tag.count}</span></span>`;
+      ? `<button class="tag-pin-btn pinned tag-pin-left" title="Unpin">${PIN_SVG}</button>`
+      : `<button class="tag-pin-btn tag-pin-left" title="Pin">${PIN_OUTLINE_SVG}</button>`;
+    btn.innerHTML = `${pinBtn}<span class="tag-hash">#</span>${esc(tag.name)}<span class="tag-right"><span class="tag-count">${tag.count}</span></span>`;
     btn.addEventListener("click", () => navigateToTag(tag.name));
     btn.querySelector(".tag-pin-btn").addEventListener("click", e => {
       e.stopPropagation();
