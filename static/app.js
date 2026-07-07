@@ -1400,6 +1400,7 @@ async function openNote(note) {
   renderNotesList();
   requestAnimationFrame(() => {
     noteBody.innerHTML = bodyToHtml(note.body || "");
+    decorateLinks();
     bodyPlaceholder.classList.toggle("hidden", (note.body || "").trim().length > 0);
     setMobileView("editor");
     autosizeTitle();
@@ -1536,7 +1537,7 @@ tagInput.addEventListener("blur", () => {
 
 function bodyToHtml(text) {
   if (!text) return '';
-  if (/<(p|ul|ol|li|div|b|i|u|s|br|strong|em|h1|h2|h3)\b/i.test(text)) return text;
+  if (/<(p|ul|ol|li|div|b|i|u|s|br|strong|em|h1|h2|h3|a|code)\b/i.test(text)) return text;
   return text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>');
@@ -1740,6 +1741,7 @@ noteBody.addEventListener("keydown", e => {
       if (k === "b") { e.preventDefault(); applyFormat("bold"); return; }
       if (k === "i") { e.preventDefault(); applyFormat("italic"); return; }
       if (k === "u") { e.preventDefault(); applyFormat("underline"); return; }
+      if (k === "k") { e.preventDefault(); applyFormat("link"); return; }
     }
     if (e.shiftKey && k === "x") { e.preventDefault(); applyFormat("strike"); return; }
     if (e.shiftKey && k === "c") { e.preventDefault(); applyFormat("code"); return; }
@@ -1783,6 +1785,34 @@ function showStickyFormatBar() {
 
 function hideStickyFormatBar() {
   stickyFormatBar.classList.add("hidden");
+}
+
+// The shell is sized to the space above the keyboard (see syncAppViewport), so
+// iOS no longer window-scrolls to reveal the caret — which also means it no
+// longer scrolls *anything* to reveal it. When the keyboard opens or the caret
+// moves, the caret can land below the fold; nudge .editor-body's own scroll so
+// it sits comfortably above the keyboard. Only ever scrolls when the caret is
+// actually out of view, so it can't interrupt a manual scroll (which doesn't
+// move the selection) or fight the user.
+function scrollCaretIntoView() {
+  if (!isTouch) return;
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || !noteBody.contains(sel.anchorNode)) return;
+  const range = sel.getRangeAt(0).cloneRange();
+  range.collapse(false);
+  const rects = range.getClientRects();
+  const rect  = rects.length ? rects[rects.length - 1] : range.getBoundingClientRect();
+  if (!rect || (rect.top === 0 && rect.bottom === 0)) return; // no measurable caret
+  const vp   = window.visualViewport;
+  const vh   = vp ? vp.height : window.innerHeight;
+  const barH = stickyFormatBar.classList.contains("hidden") ? 0 : stickyFormatBar.offsetHeight;
+  const topLimit    = editorBody.getBoundingClientRect().top + barH + 8;
+  const bottomLimit = vh - 24;
+  if (rect.bottom > bottomLimit) {
+    editorBody.scrollTop += rect.bottom - bottomLimit;
+  } else if (rect.top < topLimit) {
+    editorBody.scrollTop -= topLimit - rect.top;
+  }
 }
 
 stickyFormatBar.addEventListener("mousedown", e => {
@@ -1860,21 +1890,10 @@ noteBody.addEventListener("blur", () => {
   setTimeout(() => { if (!formatBar.contains(document.activeElement)) hideFormatBar(); }, 180);
 });
 document.addEventListener("selectionchange", () => {
-  if (isTouch) {
-    // iOS can scroll the outer document/editor-pane to bring a new
-    // selection or cursor position into view, ignoring our overflow:hidden
-    // on body/.app — the app relies entirely on .editor-body's own inner
-    // scroll, so anything outside that must never move. When it does, it
-    // drags the whole editor pane (sticky bar included) along with it,
-    // since position:sticky is only "stuck" relative to its own scroll
-    // container, not immune to that container itself being shifted. Snap
-    // it back here rather than on every scroll/resize tick (which is what
-    // broke actual scrolling previously) — selectionchange only fires when
-    // the selection/cursor itself actually changes, not continuously
-    // during a scroll gesture, so this can't interrupt one.
-    if (window.scrollY !== 0) window.scrollTo(0, 0);
-    return; // touch bar is focus-triggered, not selection-triggered
-  }
+  // Touch bar is focus-triggered, not selection-triggered. But the caret moving
+  // (tapping a new spot, typing) can put it under the keyboard, and the locked
+  // shell means nothing scrolls it back on its own — so keep it in view here.
+  if (isTouch) { requestAnimationFrame(scrollCaretIntoView); return; }
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed) { hideFormatBar(); return; }
   // Drag-selecting via the iOS selection handles only fires selectionchange,
@@ -1914,6 +1933,27 @@ function applyFormat(fmt) {
     if (!isTouch) requestAnimationFrame(showFormatBar);
     return;
   }
+  if (fmt === 'link') {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    const anc = range.commonAncestorContainer;
+    const linkEl = (anc.nodeType === Node.TEXT_NODE ? anc.parentElement : anc)?.closest?.('a');
+    if (linkEl && noteBody.contains(linkEl)) {
+      // Caret/selection sits inside an existing link → unwrap it (toggle off),
+      // mirroring how re-applying code/heading reverts it.
+      linkEl.replaceWith(document.createTextNode(linkEl.textContent));
+      noteBody.normalize();
+      scheduleSave();
+      if (!isTouch) requestAnimationFrame(showFormatBar);
+      return;
+    }
+    if (sel.isCollapsed) { showToast("Select text to add a link"); return; }
+    // The URL input steals focus and collapses the live selection, so stash a
+    // clone of the range now and restore it before wrapping the link.
+    openLinkModal(range.cloneRange());
+    return;
+  }
   const execCmds = {
     bold:      'bold',
     italic:    'italic',
@@ -1946,6 +1986,78 @@ formatBar.addEventListener("touchstart", e => {
   e.preventDefault();
   applyFormat(btn.dataset.fmt);
 }, { passive: false });
+
+// ── Links ─────────────────────────────────────────────────────────────────────
+// Give every anchor safe defaults (new tab, no opener leak). Runs after a note
+// loads and after a link is created, so stored and freshly-made links behave
+// the same. Idempotent.
+function decorateLinks() {
+  noteBody.querySelectorAll("a").forEach(a => {
+    a.setAttribute("target", "_blank");
+    a.setAttribute("rel", "noopener noreferrer");
+  });
+}
+
+let savedLinkRange = null;
+const linkModal    = $("link-modal");
+const linkUrlInput = $("link-url-input");
+
+function openLinkModal(range) {
+  savedLinkRange = range;
+  linkUrlInput.value = "";
+  linkModal.classList.remove("hidden");
+  setTimeout(() => linkUrlInput.focus(), 50);
+}
+
+function closeLinkModal() {
+  linkModal.classList.add("hidden");
+  savedLinkRange = null;
+}
+
+function confirmLink() {
+  let url = linkUrlInput.value.trim();
+  const range = savedLinkRange;
+  linkModal.classList.add("hidden");
+  savedLinkRange = null;
+  if (!url || !range) return;
+  // A bare domain ("example.com") gets https://; anything already carrying a
+  // scheme (https:, mailto:, tel:) is left untouched.
+  if (!/^[a-z][a-z0-9+.\-]*:/i.test(url)) url = "https://" + url;
+  // The URL input collapsed the live selection — restore the stashed range,
+  // then wrap it.
+  noteBody.focus();
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+  document.execCommand("createLink", false, url);
+  decorateLinks();
+  sel.collapseToEnd();
+  scheduleSave();
+  if (!isTouch) hideFormatBar();
+}
+
+$("link-confirm-btn").addEventListener("click", confirmLink);
+$("link-cancel-btn").addEventListener("click", closeLinkModal);
+$("link-modal-close").addEventListener("click", closeLinkModal);
+linkModal.addEventListener("click", e => { if (e.target === linkModal) closeLinkModal(); });
+linkUrlInput.addEventListener("keydown", e => {
+  if (e.key === "Enter")  { e.preventDefault(); confirmLink(); }
+  if (e.key === "Escape") { e.preventDefault(); closeLinkModal(); }
+});
+
+// Follow links from inside the editor: Cmd/Ctrl-click on desktop, a plain tap
+// on touch. A tap that's part of a selection (non-collapsed) is left alone, so
+// link text can still be selected to edit or unlink it.
+noteBody.addEventListener("click", e => {
+  const a = e.target.closest("a");
+  if (!a || !noteBody.contains(a)) return;
+  if (!(isTouch || e.metaKey || e.ctrlKey)) return;
+  const sel = window.getSelection();
+  if (sel && !sel.isCollapsed) return;
+  e.preventDefault();
+  const href = a.getAttribute("href");
+  if (href) window.open(href, "_blank", "noopener,noreferrer");
+});
 
 // ── Copy note ─────────────────────────────────────────────────────────────────
 
@@ -2581,6 +2693,43 @@ window.addEventListener("beforeunload", e => {
     e.returnValue = "";
   }
 });
+
+// ── Visual-viewport sync ──────────────────────────────────────────────────────
+// Size the app shell to the space *above* the on-screen keyboard. When the
+// keyboard opens iOS shrinks visualViewport.height (and may shift offsetTop);
+// mirroring those onto the shell (via the --app-h / --app-top CSS vars the
+// mobile .app rule consumes) means the editor always fits the visible area.
+// The caret is then reachable through .editor-body's own scroll, so iOS never
+// window-scrolls to reveal it — which is what used to drag the fixed header
+// and formatting bar off the top of the screen. Replaces every prior
+// keyboard-tracking hack.
+const vvp = window.visualViewport;
+function syncAppViewport() {
+  if (!vvp) return;
+  const root = document.documentElement;
+  root.style.setProperty("--app-h", vvp.height + "px");
+  root.style.setProperty("--app-top", vvp.offsetTop + "px");
+}
+if (vvp) {
+  vvp.addEventListener("resize", () => {
+    syncAppViewport();
+    // The keyboard just opened/closed and resized the shell — the caret may now
+    // be hidden under the keyboard. Bring it back into view, once on the next
+    // frame and once after the keyboard's open animation settles.
+    requestAnimationFrame(scrollCaretIntoView);
+    setTimeout(scrollCaretIntoView, 250);
+  });
+  vvp.addEventListener("scroll", syncAppViewport);
+  syncAppViewport();
+}
+// The locked shell must never let the outer window scroll. If iOS nudges it
+// (e.g. mid keyboard-transition), snap straight back. Unlike the old
+// selectionchange hack this no longer fights caret visibility, because the
+// shell above already fits the visual viewport — there's nothing to reveal by
+// scrolling the window, so this only ever undoes an unwanted nudge.
+window.addEventListener("scroll", () => {
+  if (window.scrollY !== 0) window.scrollTo(0, 0);
+}, { passive: true });
 
 applyDark(state.darkMode);
 applyPaneWidths();

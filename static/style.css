@@ -16,6 +16,7 @@ html { height: -webkit-fill-available; }
   --accent-fg: #FFFFFF;
   --danger: #DC2626;
   --danger-bg: #FFF1F2;
+  --link: #2563EB;
   --radius: 10px;
   --sidebar-w: 220px;
   --notes-w: 260px;
@@ -51,6 +52,7 @@ html { height: -webkit-fill-available; }
   --accent-fg: #1E2126;
   --danger: #F08C84;
   --danger-bg: #2E2125;
+  --link: #7AA2F7;
 }
 
 body {
@@ -730,6 +732,7 @@ body {
 .note-body-input li { margin: 0.1em 0; font-weight: 400; }
 .note-body-input code { font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 0.875em; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
 .note-body-input hr { border: none; border-top: 2px solid var(--border-mid); margin: 1em 0; cursor: default; }
+.note-body-input a { color: var(--link, #2563EB); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 
 .tags-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .editor-tag-chip {
@@ -1159,6 +1162,15 @@ body {
     display: block;
     position: relative;
     overflow: hidden;
+    /* Height/offset are driven by the visualViewport API (see syncAppViewport
+       in app.js) so the whole shell always exactly overlays the space *above*
+       the on-screen keyboard. This is what stops iOS from window-scrolling to
+       reveal the caret — with the editor already fitting the visible area, the
+       caret is reachable via .editor-body's own scroll and the header/format
+       bar never get dragged off-screen. Falls back to 100dvh where the API is
+       unavailable. */
+    height: var(--app-h, 100dvh);
+    top: var(--app-top, 0px);
   }
 
   .sidebar,
@@ -1282,8 +1294,21 @@ body {
   .settings-row { min-height: 48px; }
   .settings-row-label { font-size: var(--fs-16); }
 
-  /* Bottom-sheet overlay */
-  .modal-overlay { align-items: flex-end; }
+  /* Bottom-sheet overlay. Sized to the visual viewport (same --app-h/--app-top
+     vars the shell uses) so when a keyboard is open the sheet's bottom edge
+     sits at the top of the keyboard instead of behind it — otherwise a modal
+     with an input (link, folder) opens under the keyboard and can't be typed
+     into. Falls back to full height when no keyboard is up. */
+  .modal-overlay {
+    align-items: flex-end;
+    top: var(--app-top, 0px);
+    height: var(--app-h, 100dvh);
+    bottom: auto;
+  }
+  /* The link modal opens mid-edit with the keyboard already up, so center it as
+     a card in the space above the keyboard rather than hugging the keyboard
+     like the folder/move bottom sheets. */
+  #link-modal { align-items: center; }
 }
 
 /* ── Multi-select ─────────────────────────────────────────────────────── */

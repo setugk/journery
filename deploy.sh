@@ -4,7 +4,7 @@
 # Usage: zsh ~/.journery/deploy.sh
 
 NAS="Setu@10.0.0.10"
-JOUR="/Users/setugk/Library/CloudStorage/SeaDrive-SetuKathawate(files.setugk.com)/My Libraries/Setu's Personal Library/2. Work Related/Projects/journery"
+JOUR="/Users/setugk/Seafile/Projects/journery"
 BUILD="/volume1/docker/journery-build"
 SOCK="/tmp/journery-deploy.sock"
 

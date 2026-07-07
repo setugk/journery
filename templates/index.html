@@ -224,6 +224,9 @@
         <button class="icon-btn" data-fmt="code" title="Code">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </button>
+        <button class="icon-btn" data-fmt="link" title="Add link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        </button>
         <div class="fmt-sep"></div>
         <button class="icon-btn" data-fmt="indent" title="Indent">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8 7 12 3 16"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="18" x2="11" y2="18"/></svg>
@@ -451,6 +454,25 @@
   </div>
 </div>
 
+<!-- ── Add link modal ── -->
+<div class="modal-overlay hidden" id="link-modal">
+  <div class="modal" id="link-modal-content">
+    <div class="modal-header">
+      <span id="link-modal-title">Add link</span>
+      <button class="icon-btn" id="link-modal-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="url" class="modal-input" id="link-url-input" placeholder="https://example.com" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
+      <div class="modal-actions">
+        <button class="btn-secondary" id="link-cancel-btn">Cancel</button>
+        <button class="btn-primary" id="link-confirm-btn">Add link</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ── Floating format bar (desktop: floats above a text selection) ── -->
 <div class="floating-format-bar hidden" id="format-bar">
   <button class="fmt-btn" data-fmt="p" title="Body text">P</button>
@@ -480,6 +502,9 @@
   <div class="fmt-sep"></div>
   <button class="fmt-btn" data-fmt="code" title="Code (⌘⇧C)">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+  </button>
+  <button class="fmt-btn" data-fmt="link" title="Add link (⌘K)">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
   </button>
   <div class="fmt-sep"></div>
   <button class="fmt-btn" data-fmt="indent" title="Indent">
