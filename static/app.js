@@ -1378,8 +1378,8 @@ function showEditorBody() {
 
 const isMobile = () => window.innerWidth <= 768;
 
-function openNote(note) {
-  if (state.dirty) saveNoteNow();
+async function openNote(note) {
+  if (state.dirty) await saveNoteNow();
   state.note = note;
   noteTitle.value = note.title || "";
   noteBody.innerHTML = "";
@@ -1564,9 +1564,16 @@ async function saveNoteNow() {
   if (!state.note || !state.dirty) return;
   clearTimeout(saveTimer);
 
+  // Snapshot which note this save is for. A save can be in flight when the
+  // user switches to a different note before it resolves — when it finally
+  // resolves, it must not reclaim state.note/the editor out from under
+  // whatever note is now active, or it silently splices the new note's
+  // content onto this one's id on the next autosave tick.
+  const savingNote = state.note;
+
   const hasContent = noteTitle.value.trim() || noteBody.innerText.trim() || currentTags().length > 0;
   if (!hasContent) {
-    if (state.note.id === null) state.note = null;
+    if (state.note === savingNote && state.note.id === null) state.note = null;
     state.dirty = false;
     return;
   }
@@ -1575,17 +1582,17 @@ async function saveNoteNow() {
   setAutosave("Saving…");
   try {
     let updated;
-    if (state.note.id === null) {
+    if (savingNote.id === null) {
       updated = await api("POST", "/api/notes", {
         title: noteTitle.value,
         body: noteBody.innerHTML,
-        folder_id: state.note.folder_id,
+        folder_id: savingNote.folder_id,
         tags: currentTags(),
       });
       state.notes.unshift(updated);
       showToast("Note created");
     } else {
-      updated = await api("PUT", `/api/notes/${state.note.id}`, {
+      updated = await api("PUT", `/api/notes/${savingNote.id}`, {
         title: noteTitle.value,
         body:  noteBody.innerHTML,
         tags:  currentTags(),
@@ -1593,14 +1600,16 @@ async function saveNoteNow() {
       const idx = state.notes.findIndex(n => n.id === updated.id);
       if (idx !== -1) state.notes[idx] = updated;
     }
-    state.dirty = false;
-    state.note = updated;
+    if (state.note === savingNote) {
+      state.dirty = false;
+      state.note = updated;
+      renderNoteDates(updated);
+      setAutosave("Saved");
+      setTimeout(() => { if (autosaveEl.textContent === "Saved") setAutosave(""); }, 2000);
+    }
     renderNotesList();
-    renderNoteDates(updated);
-    setAutosave("Saved");
-    setTimeout(() => { if (autosaveEl.textContent === "Saved") setAutosave(""); }, 2000);
   } catch(e) {
-    setAutosave("Save failed");
+    if (state.note === savingNote) setAutosave("Save failed");
   }
   state.saving = false;
 }
