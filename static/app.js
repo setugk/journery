@@ -56,6 +56,7 @@ const overflowMenu   = $("overflow-menu");
 const searchInput    = $("search-input");
 const navRecents     = $("nav-recents");
 const formatBar      = $("format-bar");
+const stickyFormatBar = $("sticky-format-bar");
 const bodyPlaceholder = $("note-body-placeholder");
 const notesPaneEl    = $("notes-pane");
 const bulkActionBar  = $("bulk-action-bar");
@@ -660,7 +661,7 @@ function setMobileView(view) {
     // is document-level, not tied to focus. Without clearing it too, the
     // selectionchange listener still sees a live selection inside noteBody
     // moments later and calls showFormatBar() again, undoing hideFormatBar()
-    // and leaving the docked bar stranded over the notes list.
+    // and leaving the floating bar stranded over the notes list.
     const sel = window.getSelection();
     if (sel) sel.removeAllRanges();
     hideFormatBar();
@@ -1754,7 +1755,6 @@ noteBody.addEventListener("keydown", e => {
 
 function hideFormatBar() {
   formatBar.classList.add("hidden");
-  clearTimeout(dockPositionTimer);
 }
 
 function selectionInEditor() {
@@ -1763,44 +1763,62 @@ function selectionInEditor() {
     noteBody.contains(sel.getRangeAt(0).commonAncestorContainer);
 }
 
-// On touch devices iOS draws its own Cut/Copy/Paste callout right over the
-// selection — floating our bar there just stacks two menus on top of each
-// other. Instead dock it as a full-width bar pinned above the keyboard,
-// like a native input accessory view, so the two never overlap.
+// On touch devices iOS draws its own Cut/Copy/Paste callout right over a
+// selection, so floating our own bar there just stacks two menus on top
+// of each other. Several attempts at a bar/FAB tied to the keyboard's
+// position all ran into the same wall: iOS scrolls the document by an
+// unpredictable amount (observed up to 180px) to bring the tapped line
+// into view, dragging any position:fixed/absolute element along for the
+// ride and making anything anchored to visualViewport/keyboard height
+// inherently racy. The touch formatting bar is instead position:sticky
+// inside .editor-body (its scroll container) — it just stays at the top
+// of whatever's currently scrolled into view, like any other sticky
+// header, and doesn't need to know the keyboard or viewport exist at all.
 const isTouch = matchMedia("(hover: none)").matches;
 
-// Whenever there's an active selection with the keyboard up, iOS also docks
-// its own selection-adjustment accessory bar (up/down arrows + checkmark)
-// right above the keyboard — the same spot we want. Its height isn't
-// reported through visualViewport, and it can attach a moment after the
-// keyboard's own resize event, so a single measurement right when the
-// keyboard starts animating in is unreliable — it can land above or below
-// the accessory bar, or (if we pad for a guessed accessory height that
-// isn't actually there) leave a dead empty gap. Re-measure shortly after
-// once everything has settled instead of guessing a fixed offset.
-let dockPositionTimer = null;
-
-function positionDockedBar() {
-  const vv = window.visualViewport;
-  const keyboardHeight = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
-  formatBar.style.bottom = keyboardHeight + "px";
+function showStickyFormatBar() {
+  if (!isTouch) return;
+  stickyFormatBar.classList.remove("hidden");
 }
 
-function scheduleDockedBarPosition() {
-  positionDockedBar();
-  clearTimeout(dockPositionTimer);
-  dockPositionTimer = setTimeout(positionDockedBar, 150);
+function hideStickyFormatBar() {
+  stickyFormatBar.classList.add("hidden");
 }
+
+stickyFormatBar.addEventListener("mousedown", e => {
+  const btn = e.target.closest("[data-fmt]");
+  if (!btn) return;
+  e.preventDefault();
+  applyFormat(btn.dataset.fmt);
+});
+// The bar scrolls horizontally, and most of its width is buttons, so a
+// touchstart can't just preventDefault + apply immediately — that cancels
+// the native scroll gesture the instant a finger lands on a button, even
+// when the intent was to drag across it to scroll. Instead wait for
+// touchend and only treat it as a tap (preventDefault + apply) if the
+// finger didn't move beyond a small threshold; a real drag is left
+// completely alone so native scrolling/momentum still works.
+let fmtTouchStartX = 0, fmtTouchStartY = 0, fmtTouchMoved = false;
+stickyFormatBar.addEventListener("touchstart", e => {
+  fmtTouchMoved = false;
+  fmtTouchStartX = e.touches[0].clientX;
+  fmtTouchStartY = e.touches[0].clientY;
+}, { passive: true });
+stickyFormatBar.addEventListener("touchmove", e => {
+  const dx = Math.abs(e.touches[0].clientX - fmtTouchStartX);
+  const dy = Math.abs(e.touches[0].clientY - fmtTouchStartY);
+  if (dx > 6 || dy > 6) fmtTouchMoved = true;
+}, { passive: true });
+stickyFormatBar.addEventListener("touchend", e => {
+  const btn = e.target.closest("[data-fmt]");
+  if (!btn || fmtTouchMoved) return;
+  e.preventDefault();
+  applyFormat(btn.dataset.fmt);
+});
 
 function showFormatBar() {
+  if (isTouch) return; // touch uses the sticky bar instead — see showStickyFormatBar
   if (!state.note || !selectionInEditor()) { hideFormatBar(); return; }
-
-  if (isTouch) {
-    formatBar.classList.remove("hidden");
-    formatBar.classList.add("docked");
-    scheduleDockedBarPosition();
-    return;
-  }
 
   const sel  = window.getSelection();
   const rect = sel.getRangeAt(0).getBoundingClientRect();
@@ -1826,22 +1844,23 @@ function showFormatBar() {
   formatBar.classList.toggle("below", below);
 }
 
-if (isTouch && window.visualViewport) {
-  window.visualViewport.addEventListener("resize", () => {
-    if (!formatBar.classList.contains("hidden")) scheduleDockedBarPosition();
-  });
-  window.visualViewport.addEventListener("scroll", () => {
-    if (!formatBar.classList.contains("hidden")) scheduleDockedBarPosition();
-  });
-}
-
 noteBody.addEventListener("mouseup",  () => requestAnimationFrame(showFormatBar));
 noteBody.addEventListener("touchend", () => requestAnimationFrame(showFormatBar));
-noteBody.addEventListener("keyup",   () => selectionInEditor() ? requestAnimationFrame(showFormatBar) : hideFormatBar());
+noteBody.addEventListener("keyup",   () => requestAnimationFrame(showFormatBar));
+// The sticky bar only makes sense while there's a cursor/keyboard active
+// in the note — not persistently whenever a note happens to be open.
+noteBody.addEventListener("focus", () => { if (isTouch) showStickyFormatBar(); });
 noteBody.addEventListener("blur", () => {
+  if (isTouch) {
+    setTimeout(() => {
+      if (!stickyFormatBar.contains(document.activeElement)) hideStickyFormatBar();
+    }, 180);
+    return;
+  }
   setTimeout(() => { if (!formatBar.contains(document.activeElement)) hideFormatBar(); }, 180);
 });
 document.addEventListener("selectionchange", () => {
+  if (isTouch) return; // touch bar is focus-triggered, not selection-triggered
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed) { hideFormatBar(); return; }
   // Drag-selecting via the iOS selection handles only fires selectionchange,
@@ -1865,7 +1884,7 @@ function applyFormat(fmt) {
       document.execCommand('insertHTML', false, `<code>${text}</code>`);
     }
     scheduleSave();
-    requestAnimationFrame(showFormatBar);
+    if (!isTouch) requestAnimationFrame(showFormatBar);
     return;
   }
   const execCmds = {
@@ -1880,7 +1899,10 @@ function applyFormat(fmt) {
   };
   if (execCmds[fmt]) document.execCommand(execCmds[fmt]);
   scheduleSave();
-  requestAnimationFrame(showFormatBar);
+  // The sticky bar doesn't move, nothing to re-track — only the desktop
+  // bar re-positions after each format, since it floats relative to the
+  // selection.
+  if (!isTouch) requestAnimationFrame(showFormatBar);
 }
 
 formatBar.addEventListener("mousedown", e => {

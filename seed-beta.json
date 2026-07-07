@@ -20,9 +20,11 @@
     {
       "id": "b0000000-0000-0000-0000-000000000001",
       "title": "Welcome to Beta",
-      "body": "<div>This is the Journery beta environment. Changes are deployed here first before going to prod.</div><div><br></div><div>Use this space to test new features — it resets to this seed content on every beta deploy.</div>",
+      "body": "<div>This is the Journery beta environment. Changes are deployed here first before going to prod.</div><div><br></div><div>Use this space to test new features \u2014 it resets to this seed content on every beta deploy.</div>",
       "folder_id": null,
-      "tags": ["meta"],
+      "tags": [
+        "meta"
+      ],
       "created_at": "2025-01-01T09:00:00",
       "updated_at": "2025-01-01T09:00:00",
       "deleted_at": null
@@ -32,7 +34,9 @@
       "title": "March 10",
       "body": "<div>Good morning. Slept well. Big day ahead.</div><div><br></div><div>Things to get done:</div><ul><li>Call the bank about the statement</li><li>Review the design mockups before standup</li><li>Pick up groceries on the way home</li></ul><div><br></div><div>Feeling optimistic about the week overall.</div>",
       "folder_id": "f1000000-0000-0000-0000-000000000003",
-      "tags": ["daily-journal"],
+      "tags": [
+        "daily-journal"
+      ],
       "created_at": "2025-03-10T08:15:00",
       "updated_at": "2025-03-10T08:15:00",
       "deleted_at": null
@@ -42,7 +46,9 @@
       "title": "March 11",
       "body": "<div>The standup went longer than expected. We need a better format.</div><hr><div>Separate thought: I've been thinking about switching to async updates entirely. Fewer meetings, more written communication. Worth proposing.</div><div><br></div><div>Also remembered I need to renew the car registration this month.</div>",
       "folder_id": "f1000000-0000-0000-0000-000000000003",
-      "tags": ["daily-journal"],
+      "tags": [
+        "daily-journal"
+      ],
       "created_at": "2025-03-11T07:45:00",
       "updated_at": "2025-03-11T07:45:00",
       "deleted_at": null
@@ -50,9 +56,11 @@
     {
       "id": "b0000000-0000-0000-0000-000000000004",
       "title": "March 12",
-      "body": "<div>Quiet day. Mostly heads-down work.</div><div><br></div><div>Read a bit in the evening — halfway through the book now. The author's argument about attention is interesting but feels overstated.</div><div><br></div><div>Need to be more consistent about writing here. Even five minutes helps.</div>",
+      "body": "<div>Quiet day. Mostly heads-down work.</div><div><br></div><div>Read a bit in the evening \u2014 halfway through the book now. The author's argument about attention is interesting but feels overstated.</div><div><br></div><div>Need to be more consistent about writing here. Even five minutes helps.</div><div><br></div><div>Spent the morning going through backlog tickets. Most of them were stale and could just be closed.</div><div><br></div><div>Had a long call about the Q3 roadmap. Still not sure we're aligned on priorities, but at least the disagreements are visible now instead of buried.</div><div><br></div><div>Loose ends to close out this week:</div><ul><li>Follow up on the pending PR reviews</li><li>Book the dentist appointment</li><li>Reply to the email thread about the offsite</li><li>Renew the domain before it expires</li><li>Look into the noise-cancelling headphones</li></ul><div><br></div><div>Lunch with Priya \u2014 good to catch up outside of work context for once.</div><div><br></div><div>Tried a new running route along the river. Longer than usual, legs are feeling it now.</div><div><br></div><div>Started reading about spaced repetition for note-taking. Might be worth restructuring how I tag things here.</div><div><br></div><div>Small win: finally fixed that flaky test that's been failing intermittently for two weeks.</div><div><br></div><div>Dinner conversation turned into a long debate about whether remote work has actually made collaboration worse or just different. No conclusion, as usual.</div><div><br></div><div>Watched a documentary about deep sea creatures. The bioluminescence stuff is wild.</div><div><br></div><div>Woke up early without an alarm for once. Should try to protect that instead of immediately filling the extra time.</div><div><br></div><div>Draft of the proposal is done. Sitting on it overnight before sending \u2014 always catch more issues with fresh eyes.</div><div><br></div><div>Rough plan for tomorrow, in order:</div><ol><li>Look into the noise-cancelling headphones</li><li>Renew the domain before it expires</li><li>Reply to the email thread about the offsite</li><li>Book the dentist appointment</li><li>Follow up on the pending PR reviews</li></ol><div><br></div><div>Argument with myself about whether to buy the expensive noise-cancelling headphones. Probably will end up getting them anyway.</div><div><br></div><div>Good session at the gym. Progressive overload is finally showing on the numbers, not just how it feels.</div><div><br></div><div>Spent too long doom-scrolling before bed. Need to actually put the phone in another room.</div><div><br></div><div>Team retro today \u2014 the format still feels a bit stiff, people hold back until the last ten minutes.</div><div><br></div><div>Cooked something new for dinner, turned out better than expected. Writing down the recipe so I don't lose it.</div><div><br></div><div>Long walk with no destination in mind. Some of my better thinking happens exactly like this, unplanned.</div><div><br></div><div>Reflecting on the last few weeks \u2014 busier than I'd like, but the busyness has mostly been meaningful, not just noise.</div><div><br></div>",
       "folder_id": "f1000000-0000-0000-0000-000000000003",
-      "tags": ["daily-journal"],
+      "tags": [
+        "daily-journal"
+      ],
       "created_at": "2025-03-12T21:30:00",
       "updated_at": "2025-03-12T21:30:00",
       "deleted_at": null
@@ -62,7 +70,10 @@
       "title": "Q2 Planning notes",
       "body": "<div>Key themes for Q2:</div><ol><li>Ship the mobile improvements</li><li>Reduce support backlog by 40%</li><li>Hire one more engineer</li></ol><div><br></div><div>Open questions:</div><ul><li>Do we prioritise the API or the dashboard first?</li><li>What's the timeline for the data migration?</li></ul><hr><div>Risks: the contractor finishes in April, bandwidth is tight until then.</div>",
       "folder_id": "f1000000-0000-0000-0000-000000000002",
-      "tags": ["work", "planning"],
+      "tags": [
+        "work",
+        "planning"
+      ],
       "created_at": "2025-03-01T10:00:00",
       "updated_at": "2025-03-01T10:00:00",
       "deleted_at": null
@@ -70,9 +81,12 @@
     {
       "id": "b0000000-0000-0000-0000-000000000006",
       "title": "App ideas",
-      "body": "<div>Random ideas, unfiltered:</div><ul><li>Offline-first sync with CRDTs</li><li>End-to-end encrypted notes — keys stay on device</li><li>Keyboard shortcuts for everything</li><li>Weekly digest email: your notes from this week last year</li></ul><div><br></div><div>The digest idea is the most interesting. Low effort, high value.</div>",
+      "body": "<div>Random ideas, unfiltered:</div><ul><li>Offline-first sync with CRDTs</li><li>End-to-end encrypted notes \u2014 keys stay on device</li><li>Keyboard shortcuts for everything</li><li>Weekly digest email: your notes from this week last year</li></ul><div><br></div><div>The digest idea is the most interesting. Low effort, high value.</div>",
       "folder_id": "f1000000-0000-0000-0000-000000000002",
-      "tags": ["work", "ideas"],
+      "tags": [
+        "work",
+        "ideas"
+      ],
       "created_at": "2025-02-20T16:00:00",
       "updated_at": "2025-02-20T16:00:00",
       "deleted_at": null

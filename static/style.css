@@ -138,6 +138,14 @@ body {
 .sidebar-nav { flex: 1; overflow-y: auto; padding: 6px 0 20px; }
 .sidebar-nav::-webkit-scrollbar { width: 3px; }
 .sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.sidebar-version {
+  flex-shrink: 0;
+  text-align: center;
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  font-size: 11px;
+  color: var(--text-faint);
+  border-top: 1px solid var(--divider);
+}
 
 /* ── Sidebar nav items (Pinned, Recents, All Notes, Tags, Timeline, Trash) ─── */
 
@@ -606,20 +614,37 @@ body {
 }
 [data-dark] .floating-format-bar.below::after { border-bottom-color: #2C2C2E; }
 
-/* Docked mode (touch devices): full-width bar pinned above the keyboard
-   instead of floating over the selection, so it never fights with iOS's
-   own Cut/Copy/Paste callout. */
-.floating-format-bar.docked {
-  left: 0; right: 0; top: auto;
-  width: 100%;
-  transform: none;
-  justify-content: flex-start;
+/* Touch-only formatting bar: sticky to the top of .editor-body (its
+   scroll container), not floating/fixed/absolute at all — so it never
+   needs to track the keyboard or visualViewport. It just stays at the top
+   of whatever's currently scrolled into view, the same way any other
+   position:sticky header would, regardless of the on-screen keyboard. */
+.sticky-format-bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  padding: 12px 8px 12px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--divider);
   overflow-x: auto;
-  border-radius: 0;
-  padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
-  box-shadow: 0 -2px 12px rgba(0,0,0,0.25);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* old Edge */
 }
-.floating-format-bar.docked::after { display: none; }
+.sticky-format-bar::-webkit-scrollbar { display: none; } /* Safari/Chrome */
+.sticky-format-bar::after {
+  /* Trailing spacer so the last button clears the screen edge with some
+     breathing room once scrolled all the way, instead of sitting flush
+     against it. */
+  content: '';
+  flex: none;
+  width: 8px;
+}
+.sticky-format-bar.hidden { display: none; }
 
 .fmt-btn {
   display: inline-flex; align-items: center; justify-content: center;
