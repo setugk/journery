@@ -1860,7 +1860,21 @@ noteBody.addEventListener("blur", () => {
   setTimeout(() => { if (!formatBar.contains(document.activeElement)) hideFormatBar(); }, 180);
 });
 document.addEventListener("selectionchange", () => {
-  if (isTouch) return; // touch bar is focus-triggered, not selection-triggered
+  if (isTouch) {
+    // iOS can scroll the outer document/editor-pane to bring a new
+    // selection or cursor position into view, ignoring our overflow:hidden
+    // on body/.app — the app relies entirely on .editor-body's own inner
+    // scroll, so anything outside that must never move. When it does, it
+    // drags the whole editor pane (sticky bar included) along with it,
+    // since position:sticky is only "stuck" relative to its own scroll
+    // container, not immune to that container itself being shifted. Snap
+    // it back here rather than on every scroll/resize tick (which is what
+    // broke actual scrolling previously) — selectionchange only fires when
+    // the selection/cursor itself actually changes, not continuously
+    // during a scroll gesture, so this can't interrupt one.
+    if (window.scrollY !== 0) window.scrollTo(0, 0);
+    return; // touch bar is focus-triggered, not selection-triggered
+  }
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed) { hideFormatBar(); return; }
   // Drag-selecting via the iOS selection handles only fires selectionchange,
