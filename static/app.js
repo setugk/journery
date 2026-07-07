@@ -1536,7 +1536,7 @@ tagInput.addEventListener("blur", () => {
 
 function bodyToHtml(text) {
   if (!text) return '';
-  if (/<(p|ul|ol|li|div|b|i|u|s|br|strong|em)\b/i.test(text)) return text;
+  if (/<(p|ul|ol|li|div|b|i|u|s|br|strong|em|h1|h2|h3)\b/i.test(text)) return text;
   return text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>');
@@ -1884,6 +1884,19 @@ document.addEventListener("selectionchange", () => {
 
 function applyFormat(fmt) {
   noteBody.focus();
+  if (fmt === 'p' || fmt === 'h1' || fmt === 'h2' || fmt === 'h3') {
+    // 'p' always drops back to plain body text — the explicit way out of
+    // a heading, rather than relying on re-clicking the same heading to
+    // toggle it off (still supported below, but easy to forget which
+    // level you're on). Toggle: re-applying the same heading to a block
+    // that's already that heading reverts it to a plain paragraph (div),
+    // matching how bullet/numbered lists already toggle off via execCommand.
+    const current = document.queryCommandValue('formatBlock').toLowerCase();
+    document.execCommand('formatBlock', false, fmt === 'p' ? 'div' : (current === fmt ? 'div' : fmt));
+    scheduleSave();
+    if (!isTouch) requestAnimationFrame(showFormatBar);
+    return;
+  }
   if (fmt === 'code') {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) return;

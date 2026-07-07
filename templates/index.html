@@ -196,6 +196,11 @@
            container, so it stays visible while typing without needing to
            track the keyboard/visualViewport at all. -->
       <div class="sticky-format-bar hidden" id="sticky-format-bar">
+        <button class="icon-btn" data-fmt="p" title="Body text">P</button>
+        <button class="icon-btn" data-fmt="h1" title="Heading 1">H1</button>
+        <button class="icon-btn" data-fmt="h2" title="Heading 2">H2</button>
+        <button class="icon-btn" data-fmt="h3" title="Heading 3">H3</button>
+        <div class="fmt-sep"></div>
         <button class="icon-btn" data-fmt="bold" title="Bold">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 12a4 4 0 0 0 0-8H6v8"/><path d="M15 20a4 4 0 0 0 0-8H6v8z"/></svg>
         </button>
@@ -208,15 +213,18 @@
         <button class="icon-btn" data-fmt="strike" title="Strikethrough">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><line x1="4" y1="12" x2="20" y2="12"/></svg>
         </button>
+        <div class="fmt-sep"></div>
         <button class="icon-btn" data-fmt="bullet" title="Bullet list">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1.2" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.2" fill="currentColor" stroke="none"/></svg>
         </button>
         <button class="icon-btn" data-fmt="numbered" title="Numbered list">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-2-2-2"/></svg>
         </button>
+        <div class="fmt-sep"></div>
         <button class="icon-btn" data-fmt="code" title="Code">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </button>
+        <div class="fmt-sep"></div>
         <button class="icon-btn" data-fmt="indent" title="Indent">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 8 7 12 3 16"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="18" x2="11" y2="18"/></svg>
         </button>
@@ -445,6 +453,11 @@
 
 <!-- ── Floating format bar (desktop: floats above a text selection) ── -->
 <div class="floating-format-bar hidden" id="format-bar">
+  <button class="fmt-btn" data-fmt="p" title="Body text">P</button>
+  <button class="fmt-btn" data-fmt="h1" title="Heading 1">H1</button>
+  <button class="fmt-btn" data-fmt="h2" title="Heading 2">H2</button>
+  <button class="fmt-btn" data-fmt="h3" title="Heading 3">H3</button>
+  <div class="fmt-sep"></div>
   <button class="fmt-btn" data-fmt="bold" title="Bold (⌘B)">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 12a4 4 0 0 0 0-8H6v8"/><path d="M15 20a4 4 0 0 0 0-8H6v8z"/></svg>
   </button>

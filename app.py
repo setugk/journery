@@ -18,7 +18,7 @@ JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 STATIC_VERSION  = str(int(time.time()))
-APP_VERSION     = "1.12.1"
+APP_VERSION     = "1.13.6"
 
 
 def requires_auth(f):

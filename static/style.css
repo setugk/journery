@@ -10,8 +10,8 @@ html { height: -webkit-fill-available; }
   --divider: #F0F0F0;
   --text: #111111;
   --text-2: #444444;
-  --text-muted: #737373;
-  --text-faint: #B0B0B0;
+  --text-muted: #656565;
+  --text-faint: #949494;
   --accent: #111111;
   --accent-fg: #FFFFFF;
   --danger: #DC2626;
@@ -19,6 +19,21 @@ html { height: -webkit-fill-available; }
   --radius: 10px;
   --sidebar-w: 220px;
   --notes-w: 260px;
+
+  /* Font-size scale — every literal font-size in this file should
+     reference one of these instead of a bare px value, so a size can be
+     adjusted in one place instead of grepping for every occurrence. */
+  --fs-9: 9px;
+  --fs-10: 10px;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-15: 15px;
+  --fs-16: 16px;
+  --fs-17: 17px;
+  --fs-18: 18px;
+  --fs-22: 22px;
 }
 
 [data-dark] {
@@ -30,8 +45,8 @@ html { height: -webkit-fill-available; }
   --divider: #2A2E36;
   --text: #B6C2D6;
   --text-2: #909BAF;
-  --text-muted: #69727F;
-  --text-faint: #515863;
+  --text-muted: #7A8492;
+  --text-faint: #636B78;
   --accent: #C8CED8;
   --accent-fg: #1E2126;
   --danger: #F08C84;
@@ -52,7 +67,7 @@ body {
 .beta-badge, .demo-badge {
   display: inline-block; margin-left: 6px;
   background: #f59e0b; color: #000;
-  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+  font-size: var(--fs-9); font-weight: 700; letter-spacing: 0.08em;
   padding: 2px 5px; border-radius: 3px;
   vertical-align: middle; position: relative; top: -1px;
 }
@@ -62,7 +77,7 @@ body {
 .demo-only { display: none; }
 .demo-mode .demo-only { display: block; }
 .demo-reset-link {
-  background: none; border: none; font-family: inherit; font-size: 13px;
+  background: none; border: none; font-family: inherit; font-size: var(--fs-13);
   font-weight: 500; color: var(--danger); cursor: pointer; padding: 4px 2px;
 }
 .demo-reset-link:hover { text-decoration: underline; }
@@ -105,7 +120,7 @@ body {
   flex-shrink: 0;
   border-bottom: 1px solid var(--divider);
 }
-.app-title { font-size: 14px; font-weight: 700; letter-spacing: -0.03em; }
+.app-title { font-size: var(--fs-14); font-weight: 700; letter-spacing: -0.03em; }
 .sidebar-header-actions { display: flex; gap: 2px; }
 
 .sidebar-search {
@@ -118,7 +133,7 @@ body {
 .sidebar-search input {
   flex: 1; min-width: 0;
   background: none; border: none; outline: none;
-  font-size: 13px; color: var(--text); font-family: inherit;
+  font-size: var(--fs-14); color: var(--text); font-family: inherit;
 }
 .sidebar-search input::placeholder { color: var(--text-faint); }
 /* hide native search clear — we use a custom one */
@@ -142,7 +157,7 @@ body {
   flex-shrink: 0;
   text-align: center;
   padding: 8px 0 max(8px, env(safe-area-inset-bottom));
-  font-size: 11px;
+  font-size: var(--fs-11);
   color: var(--text-faint);
   border-top: 1px solid var(--divider);
 }
@@ -156,7 +171,7 @@ body {
      right-align to the same x whether or not a chevron is present */
   width: calc(100% - 12px); min-height: 40px; padding: 6px 30px 6px 14px;
   background: none; border: none;
-  font-size: 13px; font-family: inherit; color: var(--text-2);
+  font-size: var(--fs-14); font-family: inherit; color: var(--text-2);
   cursor: pointer; text-align: left;
   border-radius: 7px; margin: 2px 6px;
   transition: background 0.08s, color 0.08s;
@@ -169,7 +184,7 @@ body {
 /* Count right-aligns to the reserved column edge — consistent across all rows */
 .nav-count {
   margin-left: auto;
-  font-size: 11px; color: var(--text-faint); font-weight: 400;
+  font-size: var(--fs-11); color: var(--text-faint); font-weight: 400;
 }
 
 /* ── Sidebar collapsible sections ───────────────────────────────────── */
@@ -198,7 +213,7 @@ body {
 /* Non-interactive section label (Folders) */
 .sidebar-section-label {
   padding: 6px 14px 6px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  font-size: var(--fs-10); font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-faint);
 }
 
@@ -209,7 +224,7 @@ body {
   width: calc(100% - 12px); margin: 1px 6px;
   padding: 5px 30px 5px 14px;
   background: none; border: none; border-radius: 7px;
-  font-size: 13px; font-family: inherit; color: var(--text-2);
+  font-size: var(--fs-14); font-family: inherit; color: var(--text-2);
   cursor: pointer; text-align: left;
   transition: background 0.08s, color 0.08s;
   -webkit-tap-highlight-color: transparent;
@@ -218,7 +233,7 @@ body {
 .year-nav-item:hover { background: var(--border); color: var(--text); }
 .year-note-count {
   margin-left: auto;
-  font-size: 11px; color: var(--text-faint);
+  font-size: var(--fs-11); color: var(--text-faint);
 }
 
 /* ── Tag nav items (pinned + all tags) ──────────────────────────────── */
@@ -228,7 +243,7 @@ body {
   width: calc(100% - 12px); margin: 1px 6px;
   padding: 5px 30px 5px 14px;
   background: none; border: none; border-radius: 7px;
-  font-size: 13px; font-family: inherit; color: var(--text-2);
+  font-size: var(--fs-14); font-family: inherit; color: var(--text-2);
   cursor: pointer; text-align: left;
   transition: background 0.08s, color 0.08s;
   position: relative;
@@ -236,10 +251,10 @@ body {
   user-select: none; -webkit-user-select: none;
 }
 .tag-nav-item:hover { background: var(--border); color: var(--text); }
-.tag-hash { color: var(--text-faint); font-size: 12px; }
+.tag-hash { color: var(--text-faint); font-size: var(--fs-12); }
 /* count right-aligns to the same reserved column as the section counts */
 .tag-right { margin-left: auto; display: flex; align-items: center; gap: 3px; }
-.tag-count { font-size: 11px; color: var(--text-faint); }
+.tag-count { font-size: var(--fs-11); color: var(--text-faint); }
 
 /* Pin button — appears on hover (desktop) / always (touch) */
 .tag-pin-btn {
@@ -263,7 +278,7 @@ body {
 /* Pinned tags section empty state */
 .sidebar-empty {
   padding: 4px 14px 8px 14px;
-  font-size: 11px; color: var(--text-faint); font-style: italic;
+  font-size: var(--fs-11); color: var(--text-faint); font-style: italic;
 }
 
 /* ── Folder tree ────────────────────────────────────────────────────── */
@@ -291,7 +306,7 @@ body {
   display: flex; align-items: center; gap: 7px;
   padding: 5px 4px 5px 0;
   background: none; border: none; cursor: pointer;
-  font-size: 13px; font-family: inherit; color: var(--text-2);
+  font-size: var(--fs-14); font-family: inherit; color: var(--text-2);
   text-align: left; overflow: hidden;
 }
 .folder-btn svg { flex-shrink: 0; color: var(--text-muted); }
@@ -343,7 +358,7 @@ body {
   border-bottom: 1px solid var(--divider);
 }
 .pane-title {
-  flex: 1; font-size: 14px; font-weight: 600;
+  flex: 1; font-size: var(--fs-15); font-weight: 600;
   letter-spacing: -0.02em; overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
 }
@@ -367,7 +382,7 @@ body {
   display: block; width: 100%;
   padding: 7px 10px; text-align: left;
   background: none; border: none; border-radius: 6px;
-  font-size: 13px; font-family: inherit; color: var(--text);
+  font-size: var(--fs-13); font-family: inherit; color: var(--text);
   cursor: pointer; transition: background 0.08s; white-space: nowrap;
 }
 .pane-dropdown button:hover { background: var(--surface-2); }
@@ -382,13 +397,13 @@ body {
 .notes-pane-search svg { color: var(--text-faint); flex-shrink: 0; }
 .notes-pane-search input {
   flex: 1; background: none; border: none; outline: none;
-  font-size: 13px; color: var(--text); font-family: inherit;
+  font-size: var(--fs-13); color: var(--text); font-family: inherit;
 }
 .notes-pane-search input::placeholder { color: var(--text-faint); }
 
 .notes-section-label {
   padding: 10px 16px 4px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  font-size: var(--fs-10); font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-faint);
 }
 .notes-trash-divider { margin-top: 8px; padding-top: 12px; }
@@ -396,7 +411,7 @@ body {
 .note-item-trashed:hover { opacity: 0.7; background: var(--surface-2); }
 .note-item-meta-trash { display: flex; align-items: center; justify-content: space-between; }
 .tag-trash-restore-btn {
-  font-size: 11px; padding: 2px 8px;
+  font-size: var(--fs-11); padding: 2px 8px;
   background: none; border: 1px solid var(--border-mid);
   border-radius: 5px; color: var(--text-muted);
   cursor: pointer; font-family: inherit; flex-shrink: 0;
@@ -412,7 +427,7 @@ body {
 .folder-list-item:hover { background: var(--surface-2); }
 .folder-list-item svg { color: var(--text-muted); flex-shrink: 0; }
 .folder-list-item-name {
-  flex: 1; font-size: 13px; color: var(--text);
+  flex: 1; font-size: var(--fs-14); color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .folder-list-item-chev { color: var(--text-faint); flex-shrink: 0; }
@@ -430,30 +445,30 @@ body {
 .note-item:hover { background: var(--surface-2); }
 .note-item.active { background: var(--bg); }
 .note-item-title {
-  font-size: 13px; font-weight: 600; color: var(--text);
+  font-size: var(--fs-14); font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   margin-bottom: 3px;
 }
 .note-item-title.untitled { color: var(--text-faint); }
 .note-item-meta {
   display: flex; align-items: center; gap: 6px;
-  font-size: 11px; color: var(--text-faint);
+  font-size: var(--fs-12); color: var(--text-faint);
   margin-top: 8px;
 }
 .note-item-preview {
-  font-size: 12px; color: var(--text-muted); margin-bottom: 5px;
+  font-size: var(--fs-13); color: var(--text-muted); margin-bottom: 5px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .note-item-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
 .note-tag-chip {
-  font-size: 10px; color: var(--text-muted);
+  font-size: var(--fs-11); color: var(--text-muted);
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 4px; padding: 1px 5px;
 }
 
 .notes-empty {
   padding: 48px 20px; text-align: center;
-  color: var(--text-faint); font-size: 13px; line-height: 1.8;
+  color: var(--text-faint); font-size: var(--fs-13); line-height: 1.8;
 }
 
 /* ── Editor pane ────────────────────────────────────────────────────── */
@@ -473,7 +488,7 @@ body {
 }
 
 .autosave-indicator {
-  font-size: 11px; color: var(--text-faint);
+  font-size: var(--fs-11); color: var(--text-faint);
   flex: 1; text-align: center;
   pointer-events: none;
 }
@@ -493,7 +508,7 @@ body {
   display: block; width: 100%;
   padding: 7px 10px; text-align: left;
   background: none; border: none; border-radius: 6px;
-  font-size: 13px; font-family: inherit; color: var(--text);
+  font-size: var(--fs-13); font-family: inherit; color: var(--text);
   cursor: pointer; transition: background 0.08s;
 }
 .overflow-menu button:hover { background: var(--surface-2); }
@@ -515,7 +530,7 @@ body {
   display: block; width: 100%;
   padding: 7px 10px; text-align: left;
   background: none; border: none; border-radius: 6px;
-  font-size: 13px; font-family: inherit; color: var(--text);
+  font-size: var(--fs-13); font-family: inherit; color: var(--text);
   cursor: pointer; transition: background 0.08s;
 }
 .note-ctx-menu button:hover { background: var(--surface-2); }
@@ -530,7 +545,7 @@ body {
 
 .note-title-input {
   padding: 20px 28px 6px;
-  font-size: 22px; font-weight: 700; letter-spacing: -0.03em;
+  font-size: var(--fs-22); font-weight: 700; letter-spacing: -0.03em;
   color: var(--text); background: none; border: none; outline: none;
   font-family: inherit; width: 100%; flex-shrink: 0;
   resize: none; overflow: hidden; line-height: 1.3;
@@ -560,7 +575,7 @@ body {
   display: block; width: 100%;
   padding: 7px 10px; text-align: left;
   background: none; border: none; border-radius: 6px;
-  font-size: 13px; font-family: inherit; color: var(--text);
+  font-size: var(--fs-13); font-family: inherit; color: var(--text);
   cursor: pointer; transition: background 0.08s; white-space: nowrap;
 }
 .tag-suggestion-item:hover,
@@ -572,11 +587,11 @@ body {
   display: flex; gap: 32px;
 }
 .note-date-item {
-  font-size: 11px; color: var(--text-faint);
+  font-size: var(--fs-12); color: var(--text-faint);
   display: flex; flex-direction: column; gap: 1px;
 }
 .note-date-label {
-  font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  font-size: var(--fs-11); font-weight: 700; letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 .note-dates.hidden { display: none; }
@@ -655,12 +670,21 @@ body {
   flex-shrink: 0;
 }
 .fmt-btn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+/* Match each bar's own icon size (15px desktop .fmt-btn svgs, 16px touch
+   .icon-btn svgs in the sticky bar) so the text buttons (P/H1/H2/H3) read
+   as the same visual weight as the icon buttons (B/I/U/S/etc.) next to them. */
+.fmt-btn[data-fmt^="h"], .fmt-btn[data-fmt="p"] { font-size: var(--fs-15); font-weight: 700; }
+.sticky-format-bar .icon-btn[data-fmt^="h"], .sticky-format-bar .icon-btn[data-fmt="p"] { font-size: var(--fs-16); font-weight: 700; }
 .fmt-sep {
   width: 1px; height: 16px;
   background: rgba(255,255,255,0.15);
   margin: 0 2px;
   flex-shrink: 0;
 }
+/* The floating desktop bar is always dark regardless of theme, but the
+   sticky touch bar uses the actual theme surface — needs a theme-aware
+   separator instead of the white-based one above. */
+.sticky-format-bar .fmt-sep { background: var(--border); }
 
 .note-body-wrap { position: relative; }
 .note-body-placeholder {
@@ -668,7 +692,7 @@ body {
   top: 14px; left: 28px; right: 28px;
   pointer-events: none;
   user-select: none;
-  font-size: 15px; line-height: 1.7;
+  font-size: var(--fs-16); line-height: 1.7;
   color: var(--text-faint);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -677,13 +701,26 @@ body {
   flex: none;
   min-height: calc(100vh - 180px);
   padding: 14px 28px 20px;
-  font-size: 15px; line-height: 1.7; color: var(--text-2);
+  font-size: var(--fs-16); line-height: 1.7; color: var(--text-2);
   background: none; border-top: 1px solid var(--divider);
   outline: none;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   tab-size: 2;
   word-break: break-word; overflow-wrap: break-word;
 }
+/* Each Enter press creates a new top-level div (WebKit's default paragraph
+   separator here) with zero margin, so consecutive lines stack at exactly
+   1x line-height. Adding margin-bottom only to plain paragraphs (not
+   line-height itself) makes the gap between paragraphs 1.5x while text
+   wrapping within a single paragraph is untouched. 0.85em = half of the
+   1.7 line-height above. */
+.note-body-input > div { margin-bottom: 0.85em; }
+.note-body-input h1, .note-body-input h2, .note-body-input h3 {
+  color: var(--text); font-weight: 700; line-height: 1.3; margin: 0.5em 0 0.2em;
+}
+.note-body-input h1 { font-size: 1.6em; }
+.note-body-input h2 { font-size: 1.3em; }
+.note-body-input h3 { font-size: 1.1em; font-weight: 600; }
 .note-body-input b, .note-body-input strong { font-weight: 600; }
 .note-body-input i, .note-body-input em { font-style: italic; }
 .note-body-input u { text-decoration: underline; }
@@ -697,13 +734,13 @@ body {
 .tags-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .editor-tag-chip {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 12px; color: var(--text-muted);
+  font-size: var(--fs-13); color: var(--text-muted);
   background: var(--bg); border: 1px solid var(--border);
   border-radius: 5px; padding: 2px 8px 2px 6px;
 }
 .editor-tag-chip button {
   background: none; border: none; cursor: pointer;
-  color: var(--text-faint); font-size: 14px; line-height: 1;
+  color: var(--text-faint); font-size: var(--fs-14); line-height: 1;
   padding: 0; display: flex; align-items: center;
   transition: color 0.1s;
 }
@@ -712,7 +749,7 @@ body {
 .tag-input {
   flex: 1; min-width: 80px;
   background: none; border: none; outline: none;
-  font-size: 12px; color: var(--text); font-family: inherit;
+  font-size: var(--fs-13); color: var(--text); font-family: inherit;
 }
 .tag-input::placeholder { color: var(--text-faint); }
 
@@ -721,7 +758,7 @@ body {
   align-items: center; justify-content: center; gap: 12px;
   color: var(--text-faint);
 }
-.editor-empty-state p { font-size: 13px; }
+.editor-empty-state p { font-size: var(--fs-13); }
 .editor-empty-state.hidden { display: none; }
 .editor-body.hidden { display: none; }
 
@@ -748,7 +785,7 @@ body {
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 16px 12px;
-  font-size: 14px; font-weight: 600;
+  font-size: var(--fs-14); font-weight: 600;
   border-bottom: 1px solid var(--divider);
 }
 
@@ -758,7 +795,7 @@ body {
   width: 100%; padding: 9px 12px;
   background: var(--bg); border: 1.5px solid var(--border);
   border-radius: 8px; outline: none;
-  font-size: 14px; font-family: inherit; color: var(--text);
+  font-size: var(--fs-14); font-family: inherit; color: var(--text);
   margin-bottom: 12px;
   transition: border-color 0.15s;
 }
@@ -770,7 +807,7 @@ body {
   padding: 7px 14px;
   background: none; border: 1.5px solid var(--border);
   border-radius: 8px; cursor: pointer;
-  font-size: 13px; font-family: inherit; color: var(--text-2);
+  font-size: var(--fs-13); font-family: inherit; color: var(--text-2);
   transition: background 0.1s;
 }
 .btn-secondary:hover { background: var(--bg); }
@@ -779,7 +816,7 @@ body {
   padding: 7px 14px;
   background: var(--accent); color: var(--accent-fg); border: none;
   border-radius: 8px; cursor: pointer;
-  font-size: 13px; font-weight: 600; font-family: inherit;
+  font-size: var(--fs-13); font-weight: 600; font-family: inherit;
   transition: opacity 0.1s;
 }
 .btn-primary:hover { opacity: 0.85; }
@@ -789,7 +826,7 @@ body {
   display: flex; align-items: center; gap: 8px;
   width: 100%; padding: 9px 8px;
   background: none; border: none; border-radius: 8px;
-  font-size: 13px; font-family: inherit; color: var(--text);
+  font-size: var(--fs-13); font-family: inherit; color: var(--text);
   cursor: pointer; text-align: left;
   transition: background 0.08s;
 }
@@ -804,7 +841,7 @@ body {
   transform: translateX(-50%) translateY(0);
   background: var(--text); color: var(--accent-fg);
   padding: 9px 18px; border-radius: 20px;
-  font-size: 13px; font-weight: 500; white-space: nowrap;
+  font-size: var(--fs-13); font-weight: 500; white-space: nowrap;
   z-index: 900; pointer-events: none;
   opacity: 1; transition: opacity 0.25s, transform 0.25s;
 }
@@ -832,12 +869,12 @@ body {
   background: var(--surface);
 }
 .settings-topbar-title {
-  font-size: 14px; font-weight: 700; letter-spacing: -0.01em; color: var(--text);
+  font-size: var(--fs-14); font-weight: 700; letter-spacing: -0.01em; color: var(--text);
 }
 .settings-topbar-back {
   display: flex; align-items: center; gap: 4px;
   background: none; border: none; cursor: pointer;
-  font-size: 14px; font-weight: 500; color: var(--text-2);
+  font-size: var(--fs-14); font-weight: 500; color: var(--text-2);
   font-family: inherit; padding: 4px 8px 4px 0;
   transition: color 0.1s; white-space: nowrap;
 }
@@ -861,7 +898,7 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   width: 100%; padding: 8px 12px;
   background: none; border: none; border-radius: 8px;
-  font-size: 13px; font-family: inherit; color: var(--text-2);
+  font-size: var(--fs-13); font-family: inherit; color: var(--text-2);
   cursor: pointer; text-align: left;
   transition: background 0.08s, color 0.08s;
 }
@@ -888,7 +925,7 @@ body {
 .settings-group {}
 
 .settings-group-title {
-  font-size: 11px;
+  font-size: var(--fs-11);
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -918,19 +955,19 @@ body {
 }
 
 .settings-row-label {
-  font-size: 15px;
+  font-size: var(--fs-16);
   color: var(--text);
   font-weight: 400;
 }
 
 .settings-row-desc {
-  font-size: 12px;
+  font-size: var(--fs-12);
   color: var(--text-muted);
   margin-top: 2px;
 }
 
 .settings-row-value {
-  font-size: 15px;
+  font-size: var(--fs-16);
   color: var(--text-muted);
 }
 
@@ -963,8 +1000,8 @@ body {
   border-bottom: 1px solid var(--divider);
 }
 .settings-tag-item:last-child { border-bottom: none; }
-.settings-tag-name { flex: 1; font-size: 14px; color: var(--text); }
-.settings-tag-count { font-size: 12px; color: var(--text-faint); }
+.settings-tag-name { flex: 1; font-size: var(--fs-14); color: var(--text); }
+.settings-tag-count { font-size: var(--fs-12); color: var(--text-faint); }
 .settings-tag-delete {
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
@@ -985,12 +1022,12 @@ body {
 .settings-tag-cancel-btn:hover { color: var(--danger); background: var(--danger-bg); }
 .settings-tag-rename-input {
   flex: 1; min-width: 0;
-  font-size: 14px; font-family: inherit; color: var(--text);
+  font-size: var(--fs-14); font-family: inherit; color: var(--text);
   border: 1.5px solid var(--border-mid); border-radius: 6px;
   padding: 4px 8px; background: var(--bg); outline: none;
 }
 .settings-tag-rename-input:focus { border-color: var(--text-muted); }
-.settings-empty { font-size: 13px; color: var(--text-faint); padding: 14px 16px; }
+.settings-empty { font-size: var(--fs-13); color: var(--text-faint); padding: 14px 16px; }
 
 /* Segmented picker (list date, recents range, …) */
 .segmented-picker {
@@ -1003,7 +1040,7 @@ body {
 .segmented-picker button {
   flex: 1; padding: 5px 10px;
   background: none; border: none;
-  font-size: 12px; font-family: inherit; color: var(--text-muted);
+  font-size: var(--fs-12); font-family: inherit; color: var(--text-muted);
   cursor: pointer; transition: background 0.1s, color 0.1s;
   white-space: nowrap;
 }
@@ -1012,7 +1049,7 @@ body {
 
 /* Export link */
 .settings-export-link {
-  font-size: 13px; font-weight: 500; color: var(--text);
+  font-size: var(--fs-13); font-weight: 500; color: var(--text);
   background: var(--bg); border: 1.5px solid var(--border);
   border-radius: 8px; padding: 6px 12px; text-decoration: none;
   transition: background 0.1s; white-space: nowrap; flex-shrink: 0;
@@ -1055,7 +1092,7 @@ body {
 .theme-swatch span { flex: 1; display: block; }
 .theme-card-name {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--fs-13);
   font-weight: 500;
   color: var(--text);
 }
@@ -1076,7 +1113,7 @@ body {
 .subfolder-section-toggle {
   display: flex; align-items: center; gap: 7px;
   width: 100%; padding: 10px 16px 6px;
-  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  font-size: var(--fs-10); font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-faint);
   cursor: pointer; user-select: none;
   background: none; border: none; font-family: inherit; text-align: left;
@@ -1103,7 +1140,7 @@ body {
   display: block; width: 100%;
   padding: 11px 14px; text-align: left;
   background: none; border: none; border-radius: 8px;
-  font-size: 15px; font-family: inherit; color: var(--text);
+  font-size: var(--fs-15); font-family: inherit; color: var(--text);
   cursor: pointer; transition: background 0.08s;
 }
 .folder-ctx-menu button:active { background: var(--border); }
@@ -1150,46 +1187,46 @@ body {
   .editor-pane { border-right: none; display: flex; flex-direction: column; }
   .editor-toolbar { flex-shrink: 0; position: sticky; top: 0; z-index: 10; background: var(--surface); }
   .editor-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; }
-  .note-title-input { flex-shrink: 0; padding: 20px 20px 6px; font-size: 22px; }
+  .note-title-input { flex-shrink: 0; padding: 20px 20px 6px; font-size: var(--fs-22); }
   .note-tags-row { padding: 0 20px 10px; }
-  .note-body-input { flex: none; min-height: calc(100dvh - 210px); padding: 14px 20px max(env(safe-area-inset-bottom), 24px); font-size: 17px; line-height: 1.75; }
-  .note-body-placeholder { top: 14px; left: 20px; right: 20px; font-size: 17px; line-height: 1.75; }
+  .note-body-input { flex: none; min-height: calc(100dvh - 210px); padding: 14px 20px max(env(safe-area-inset-bottom), 24px); font-size: var(--fs-17); line-height: 1.75; }
+  .note-body-placeholder { top: 14px; left: 20px; right: 20px; font-size: var(--fs-17); line-height: 1.75; }
 
-  .notes-pane-search input { font-size: 16px; }
+  .notes-pane-search input { font-size: var(--fs-16); }
 
-  input, textarea, .modal-input { font-size: 16px; }
+  input, textarea, .modal-input { font-size: var(--fs-16); }
 
   .icon-btn { width: 44px; height: 44px; border-radius: 10px; }
   .icon-btn svg { width: 18px; height: 18px; }
 
   .sidebar-header { height: 64px; padding: 0 10px 0 18px; }
-  .app-title { font-size: 18px; }
+  .app-title { font-size: var(--fs-18); }
   .notes-pane-header { height: 64px; padding: 0 6px; }
   .editor-toolbar { height: 64px; }
   .sidebar-search { padding: 12px 14px 10px; gap: 10px; }
   .search-clear { width: 32px; height: 32px; }
   .search-clear svg { width: 16px; height: 16px; }
-  .sidebar-search input { font-size: 16px; }
+  .sidebar-search input { font-size: var(--fs-16); }
 
-  .nav-item     { min-height: 48px; font-size: 16px; padding: 0 36px 0 16px; gap: 10px; }
+  .nav-item     { min-height: 48px; font-size: var(--fs-16); padding: 0 36px 0 16px; gap: 10px; }
   .folder-row   { min-height: 48px; }
-  .folder-btn   { padding: 12px 4px; font-size: 16px; gap: 10px; }
-  .tag-nav-item { min-height: 48px; font-size: 16px; padding: 8px 36px 8px 16px; }
-  .year-nav-item { min-height: 48px; font-size: 16px; padding: 8px 36px 8px 16px; }
+  .folder-btn   { padding: 12px 4px; font-size: var(--fs-16); gap: 10px; }
+  .tag-nav-item { min-height: 48px; font-size: var(--fs-16); padding: 8px 36px 8px 16px; }
+  .year-nav-item { min-height: 48px; font-size: var(--fs-16); padding: 8px 36px 8px 16px; }
   .tag-pin-btn  { opacity: 1; width: 32px; height: 32px; }
 
   .note-item { padding: 14px 18px; }
-  .note-item-title { font-size: 15px; }
-  .note-item-preview { font-size: 13px; }
-  .note-item-meta { font-size: 12px; }
+  .note-item-title { font-size: var(--fs-15); }
+  .note-item-preview { font-size: var(--fs-13); }
+  .note-item-meta { font-size: var(--fs-12); }
 
   .folder-list-item { min-height: 52px; padding: 14px 18px; }
   .folder-list-item svg { width: 16px; height: 16px; }
 
-  .subfolder-section-toggle { min-height: 44px; padding: 12px 18px 6px; font-size: 11px; }
+  .subfolder-section-toggle { min-height: 44px; padding: 12px 18px 6px; font-size: var(--fs-11); }
 
-  .pane-dropdown button { min-height: 44px; padding: 12px 14px; font-size: 15px; }
-  .overflow-menu button { min-height: 44px; padding: 12px 14px; font-size: 15px; }
+  .pane-dropdown button { min-height: 44px; padding: 12px 14px; font-size: var(--fs-15); }
+  .overflow-menu button { min-height: 44px; padding: 12px 14px; font-size: var(--fs-15); }
 
   .folder-kebab { opacity: 1; width: 44px; height: 44px; }
 
@@ -1204,7 +1241,7 @@ body {
     align-items: center;
     padding: 0 8px;
   }
-  .settings-topbar-title { text-align: center; font-size: 15px; font-weight: 600; justify-self: center; }
+  .settings-topbar-title { text-align: center; font-size: var(--fs-15); font-weight: 600; justify-self: center; }
   .settings-topbar-back { display: flex; justify-self: start; }
   .settings-topbar-spacer { justify-self: end; }
 
@@ -1222,7 +1259,7 @@ body {
   }
   .settings-cat-item {
     border-radius: 0; padding: 0 12px 0 16px;
-    min-height: 48px; font-size: 16px;
+    min-height: 48px; font-size: var(--fs-16);
     border-bottom: 1px solid var(--divider);
   }
   .settings-cat-item:last-child { border-bottom: none; }
@@ -1243,7 +1280,7 @@ body {
   .settings-view[data-pane="detail"] .settings-content-pane { transform: translateX(0); padding: 20px 16px 40px; }
 
   .settings-row { min-height: 48px; }
-  .settings-row-label { font-size: 16px; }
+  .settings-row-label { font-size: var(--fs-16); }
 
   /* Bottom-sheet overlay */
   .modal-overlay { align-items: flex-end; }
@@ -1263,7 +1300,7 @@ body {
 .select-done-btn {
   display: none;
   padding: 4px 8px;
-  font-size: 12px; font-weight: 600; font-family: inherit;
+  font-size: var(--fs-12); font-weight: 600; font-family: inherit;
   color: var(--text); background: none; border: none;
   border-radius: 6px; cursor: pointer;
   white-space: nowrap;
@@ -1307,11 +1344,11 @@ body {
 .bulk-action-bar.hidden { display: none; }
 .bulk-main { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .bulk-main.hidden { display: none; }
-.bulk-count { font-size: 13px; color: var(--text-muted); flex: 1; }
+.bulk-count { font-size: var(--fs-13); color: var(--text-muted); flex: 1; }
 .bulk-actions { display: flex; gap: 6px; }
 .bulk-action-btn {
   padding: 6px 11px;
-  font-size: 13px; font-weight: 500; font-family: inherit;
+  font-size: var(--fs-13); font-weight: 500; font-family: inherit;
   border: 1.5px solid var(--border-mid); border-radius: 8px;
   background: var(--surface); color: var(--text);
   cursor: pointer; transition: background 0.1s, opacity 0.1s;
@@ -1333,15 +1370,15 @@ body {
 .bulk-tag-chip {
   display: inline-flex; align-items: center; gap: 4px;
   background: var(--border); border-radius: 4px;
-  padding: 2px 6px; font-size: 12px; color: var(--text-2); white-space: nowrap;
+  padding: 2px 6px; font-size: var(--fs-12); color: var(--text-2); white-space: nowrap;
 }
 .bulk-tag-chip button {
   background: none; border: none; padding: 0; margin: 0; line-height: 1;
-  cursor: pointer; color: var(--text-faint); font-size: 14px; display: flex;
+  cursor: pointer; color: var(--text-faint); font-size: var(--fs-14); display: flex;
 }
 .bulk-tag-input {
   flex: 1; min-width: 80px; border: none; background: none; outline: none;
-  font-size: 13px; color: var(--text); font-family: inherit;
+  font-size: var(--fs-13); color: var(--text); font-family: inherit;
 }
 .bulk-tag-suggestions {
   position: absolute; bottom: calc(100% + 4px); left: 0; right: 0;
@@ -1353,15 +1390,15 @@ body {
 .bulk-tag-suggestion-item {
   display: block; width: 100%; padding: 7px 10px; text-align: left;
   background: none; border: none; border-radius: 6px;
-  font-size: 13px; color: var(--text); cursor: pointer; font-family: inherit;
+  font-size: var(--fs-13); color: var(--text); cursor: pointer; font-family: inherit;
 }
 .bulk-tag-suggestion-item:hover { background: var(--surface-2); }
 .bulk-tag-panel-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
 @media (max-width: 768px) {
   .bulk-action-bar { padding: 12px 16px; }
-  .bulk-action-btn { padding: 8px 12px; font-size: 14px; min-height: 44px; }
-  .bulk-tag-input { font-size: 16px; }
+  .bulk-action-btn { padding: 8px 12px; font-size: var(--fs-14); min-height: 44px; }
+  .bulk-tag-input { font-size: var(--fs-16); }
   .note-checkbox { left: 16px; width: 22px; height: 22px; }
   .notes-pane.select-mode .note-item { padding-left: 50px; }
 }
@@ -1407,7 +1444,7 @@ body {
 .empty-trash-btn {
   display: none; align-items: center;
   padding: 0 11px; height: 30px;
-  font-size: 12px; font-weight: 500; font-family: inherit;
+  font-size: var(--fs-12); font-weight: 500; font-family: inherit;
   color: var(--danger); border: 1.5px solid var(--danger);
   border-radius: 8px; background: none; cursor: pointer;
   white-space: nowrap; transition: background 0.1s;
@@ -1421,10 +1458,10 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px; margin-top: 5px; flex-wrap: wrap;
 }
-.trash-note-time { font-size: 11px; color: var(--text-faint); flex-shrink: 0; }
+.trash-note-time { font-size: var(--fs-11); color: var(--text-faint); flex-shrink: 0; }
 .trash-note-actions { display: flex; gap: 5px; }
 .trash-restore-btn, .trash-delete-btn {
-  padding: 3px 9px; font-size: 11px; font-weight: 500; font-family: inherit;
+  padding: 3px 9px; font-size: var(--fs-11); font-weight: 500; font-family: inherit;
   border-radius: 6px; border: 1.5px solid var(--border-mid);
   background: var(--surface); color: var(--text); cursor: pointer;
   transition: background 0.1s;
@@ -1439,13 +1476,13 @@ body {
   padding: 9px 16px; margin: 0 0 12px;
   background: var(--danger-bg);
   border-bottom: 1px solid color-mix(in srgb, var(--danger) 20%, transparent);
-  font-size: 12px; color: var(--danger);
+  font-size: var(--fs-12); color: var(--danger);
 }
 .trash-banner.hidden { display: none; }
 .trash-banner-label { font-weight: 500; flex: 1; }
 .trash-banner-actions { display: flex; gap: 6px; }
 .trash-banner-restore, .trash-banner-delete {
-  padding: 4px 10px; font-size: 12px; font-weight: 500; font-family: inherit;
+  padding: 4px 10px; font-size: var(--fs-12); font-weight: 500; font-family: inherit;
   border-radius: 6px; cursor: pointer; transition: opacity 0.1s;
 }
 .trash-banner-restore {
