@@ -25,6 +25,8 @@ seed-beta.json
 docker-compose-agrams.yml
 *.plist
 
+capture_screenshots.py
+
 # One-time personal data-migration scripts (Notion/Evernote/Bear imports)
 import_notion.py
 import_txt.py

@@ -2,9 +2,9 @@
 
 A self-hosted private journaling app. Nestable folders, tagged notes, markdown-syntax editor, search. Runs on a NAS or any Docker host, accessed via browser on any device.
 
-![Journery desktop](screenshots/clippery_desktop.png)
+![Journery desktop](screenshots/desktop.png)
 
-<img src="screenshots/clippery_mobile.png" alt="Journery mobile" width="320" />
+<img src="screenshots/mobile.png" alt="Journery mobile" width="320" />
 
 ## What it does
 
@@ -24,7 +24,35 @@ Kick the tyres at **[demo-journery.setugk.com](https://demo-journery.setugk.com)
 
 ## Getting started
 
-You own your data — it lives in a folder you choose, on hardware you control. The only dependency is [Docker](https://docs.docker.com/get-docker/).
+You own your data — it lives on hardware you control, and the Journery author never sees it or hosts it. Pick whichever path fits you.
+
+### Easiest — host it on PikaPods (no server of your own)
+
+No NAS, no spare machine, no command line? [**PikaPods**](https://www.pikapods.com) runs Journery for you for about **$1–2/month**. Your notes live on *your* pod — nobody else can see them, and no one hosts your data but you.
+
+1. Create a [PikaPods](https://www.pikapods.com) account.
+2. Add a pod running the image **`ghcr.io/setugk/journery`**.
+3. Use these settings:
+   - **Container port:** `5000`
+   - **Volume:** mount storage at **`/data`** — every note lives here
+   - *(optional)* set **`JOURNERY_USER`** + **`JOURNERY_PASS`** to require a login
+4. Open the URL PikaPods gives you — that's your private Journery.
+
+Export any time from **Settings → Data**. Want to move to your own hardware later? Same image, same data file — just follow the Docker steps below.
+
+### Prefer to let an AI assistant set it up?
+
+Not comfortable in a terminal? Paste this to an AI coding assistant (Claude, etc.) on the computer you want to host it on:
+
+> Set up **Journery**, an open-source self-hosted journaling app, on this computer. My notes must stay on this machine — do not use any cloud service or send data anywhere.
+> 1. Verify Docker is installed (`docker --version`); if not, install it (or give me steps for my OS).
+> 2. Run: `docker run -d --name journery --restart unless-stopped -p 5050:5000 -v ~/journery-data:/data ghcr.io/setugk/journery:latest`
+> 3. Verify it's running (`docker ps`) and that `http://localhost:5050` loads.
+> 4. Tell me: the URL to open, that my notes live in `~/journery-data`, how to back them up (copy that folder), and how to enable a password (`JOURNERY_USER` / `JOURNERY_PASS`).
+
+### Self-host with Docker
+
+You'll need [Docker](https://docs.docker.com/get-docker/). Pin a release tag (e.g. `:v1.18.1`) for stability, or use `:latest` to track the newest build.
 
 ### Quickest — one command
 
