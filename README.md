@@ -2,21 +2,30 @@
 
 A self-hosted private journaling app. Nestable folders, tagged notes, markdown-syntax editor, search. Runs on a NAS or any Docker host, accessed via browser on any device.
 
-![Journery desktop](screenshots/desktop.png)
+![Journery desktop](screenshots/desktop-home.png)
 
-<img src="screenshots/mobile.png" alt="Journery mobile" width="320" />
+<img src="screenshots/mobile-home.png" alt="Journery on mobile" width="300" />
 
 ## What it does
 
+- **Rich editor** — headings, bold/italic/underline/strike, pull quotes, inline & block code, links, checklists, and nested lists with depth-varying bullets
 - Nested folders with rename, move, and drag-and-drop
-- Tags with autocomplete and inline autocomplete in the editor
-- Markdown syntax (raw textarea) — bullets, numbered lists, indentation
+- Tags with autocomplete, both in the sidebar and inline in the editor
 - Full-text search across all notes
 - Trash with 30-day retention + restore
+- 20+ built-in themes, light and dark
 - PWA — add to home screen on iOS/Android
 - Auto-saves 2s after last keystroke
 - Real-time sync polling across tabs/devices
 - 3-pane layout on desktop; drill-down navigation on mobile
+
+Formatting bar — headings, quotes, lists, checklists, code, links:
+
+![Journery editor formatting](screenshots/text-formatting-options.png)
+
+Make it yours with 20+ themes (Nord, Catppuccin, Gruvbox, Dracula, Solarized, and more):
+
+![Journery themes](screenshots/desktop-themes.png)
 
 ## Try it first
 
