@@ -507,8 +507,8 @@ body {
   z-index: 100;
 }
 .overflow-menu button {
-  display: block; width: 100%;
-  padding: 7px 10px; text-align: left;
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 8px 10px; text-align: left; white-space: nowrap;
   background: none; border: none; border-radius: 6px;
   font-size: var(--fs-13); font-family: inherit; color: var(--text);
   cursor: pointer; transition: background 0.08s;
@@ -516,6 +516,8 @@ body {
 .overflow-menu button:hover { background: var(--surface-2); }
 .overflow-menu button.danger { color: var(--danger); }
 .overflow-menu button.danger:hover { background: var(--danger-bg); }
+.overflow-menu button svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-muted); }
+.overflow-menu button.danger svg { color: var(--danger); }
 .overflow-menu.hidden { display: none; }
 
 .note-ctx-menu {
@@ -644,13 +646,29 @@ body {
   align-items: center;
   flex-shrink: 0;
   gap: 2px;
-  padding: 12px 8px 12px 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--divider);
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;      /* Firefox */
   -ms-overflow-style: none;   /* old Edge */
+  /* Collapsed by default — the header's Formatting toggle drops it down. It
+     animates open from behind the header (max-height) rather than being always
+     on, which is visual noise while writing. */
+  max-height: 0;
+  padding: 0 8px 0 12px;
+  opacity: 0;
+  border-bottom-width: 0;
+  pointer-events: none;
+  transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.2s ease, border-bottom-width 0.25s ease;
+}
+.sticky-format-bar.open {
+  max-height: 56px;
+  padding: 12px 8px 12px 12px;
+  opacity: 1;
+  border-bottom-width: 1px;
+  pointer-events: auto;
 }
 .sticky-format-bar::-webkit-scrollbar { display: none; } /* Safari/Chrome */
 .sticky-format-bar::after {
@@ -661,7 +679,8 @@ body {
   flex: none;
   width: 8px;
 }
-.sticky-format-bar.hidden { display: none; }
+/* Header Formatting toggle — highlighted while the bar is open. */
+#format-toggle-btn.active { color: var(--accent); background: var(--surface-2); }
 
 .fmt-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -727,12 +746,99 @@ body {
 .note-body-input i, .note-body-input em { font-style: italic; }
 .note-body-input u { text-decoration: underline; }
 .note-body-input s, .note-body-input strike { text-decoration: line-through; }
-.note-body-input ul { list-style: disc; padding-left: 1.5em; margin: 0.3em 0; }
 .note-body-input ol { list-style: decimal; padding-left: 1.5em; margin: 0.3em 0; }
 .note-body-input li { margin: 0.1em 0; font-weight: 400; }
-.note-body-input code { font-family: 'SF Mono', 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 0.875em; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px; padding: 0.1em 0.35em; }
+
+/* Bullets: draw the marker ourselves (list-style:none + ::before) so we can use
+   real shapes, not just the three native ones, and cycle them by nesting depth.
+   The marker is an inline-block pulled left into the list padding via negative
+   margin, so it hangs beside the text and stays baseline-aligned (wrapped lines
+   align to the text, not the marker). `> li` scopes each rule to items at that
+   exact depth; the deeper, more-specific chain wins the cascade. Cycle of four:
+   • filled dot → ◦ hollow circle → ▪ square → ‣ arrow, then repeat. */
+.note-body-input ul { list-style: none; padding-left: 1.6em; margin: 0.3em 0; }
+.note-body-input ul > li { position: relative; }
+.note-body-input ul > li::before {
+  content: '\2022';                 /* • */
+  /* Marker box == the full 1.6em gutter (border-box via the global reset),
+     pulled left into the padding; glyph right-aligned with a fixed 0.45em gap
+     to the text, so the spacing reads identical whatever shape the glyph is. */
+  display: inline-block; width: 1.6em; margin-left: -1.6em;
+  text-align: right; padding-right: 0.45em;
+  color: var(--text-muted); font-weight: 700;
+}
+.note-body-input ul ul > li::before                      { content: '\25E6'; }  /* ◦ hollow circle */
+.note-body-input ul ul ul > li::before                   { content: '\25AA'; font-size: 0.85em; }  /* ▪ square */
+.note-body-input ul ul ul ul > li::before                { content: '\2023'; }  /* ‣ arrow */
+.note-body-input ul ul ul ul ul > li::before             { content: '\2022'; }  /* • */
+.note-body-input ul ul ul ul ul ul > li::before          { content: '\25E6'; }  /* ◦ */
+.note-body-input ul ul ul ul ul ul ul > li::before       { content: '\25AA'; font-size: 0.85em; }  /* ▪ */
+.note-body-input ul ul ul ul ul ul ul ul > li::before    { content: '\2023'; }  /* ‣ */
+
+/* Numbers stay native (decimal→alpha→roman, cycling every 3 levels). */
+.note-body-input ol ol                      { list-style-type: lower-alpha; }
+.note-body-input ol ol ol                   { list-style-type: lower-roman; }
+.note-body-input ol ol ol ol                { list-style-type: decimal; }
+.note-body-input ol ol ol ol ol             { list-style-type: lower-alpha; }
+.note-body-input ol ol ol ol ol ol          { list-style-type: lower-roman; }
+.note-body-input ol ol ol ol ol ol ol       { list-style-type: decimal; }
+.note-body-input ol ol ol ol ol ol ol ol    { list-style-type: lower-alpha; }
+.note-body-input ol ol ol ol ol ol ol ol ol { list-style-type: lower-roman; }
+
+/* Checklist: a <ul class="task-list"> whose marker is a tappable checkbox. The
+   class selector outranks the bullet ::before rules above, so it wins even when
+   nested. Explicit padding/text-align/width reset the bullet marker's geometry
+   (which would otherwise leak through property-by-property). */
+.note-body-input ul.task-list { padding-left: 1.7em; }
+.note-body-input ul.task-list > li::before {
+  content: '';
+  /* inline-flex + center centers the ✓ inside the box by geometry — checkmark
+     glyphs carry heavy bottom bearing, so line-height/text-align leave it low. */
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.15em; height: 1.15em;
+  margin-left: -1.7em; margin-right: 0.55em; padding: 0;
+  /* middle centers the box (not by baseline) — stays put with or without the ✓.
+     `middle` targets the x-height midpoint, which sits slightly below the text's
+     visual center (caps/ascenders sit above it), so lift the box a touch to
+     optically center it with the line. */
+  vertical-align: middle; transform: translateY(-0.1em);
+  border: 1.5px solid var(--border-mid); border-radius: 5px;
+  color: var(--accent-fg); font-size: 0.9em; font-weight: 700; line-height: 1;
+  cursor: pointer; transition: background 0.12s, border-color 0.12s;
+}
+.note-body-input ul.task-list > li.done::before {
+  content: '\2713';                       /* ✓ */
+  background: var(--accent); border-color: var(--accent);
+}
+.note-body-input ul.task-list > li.done { color: var(--text-muted); text-decoration: line-through; }
+.note-body-input code {
+  /* Menlo (not SF Mono) — SF Mono is San Francisco's monospace sibling, so it
+     shares the system UI font's design language and reads as barely different
+     from the body text. Menlo has real programmer-font character (dotted
+     zero, distinct letterforms) and is preinstalled on every Apple device. */
+  font-family: 'Menlo', 'Monaco', 'Consolas', 'Courier New', monospace;
+  font-size: 0.875em; color: var(--text-2);
+  /* Same light card treatment used for modals/dropdowns elsewhere in the app
+     (surface + border), so the box reads as a deliberate, familiar shape
+     rather than a loud highlight. */
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 0.1em 0.4em;
+}
 .note-body-input hr { border: none; border-top: 2px solid var(--border-mid); margin: 1em 0; cursor: default; }
+.note-body-input pre {
+  margin: 0.7em 0; padding: 10px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  white-space: pre-wrap; word-break: break-word; overflow-x: auto;
+}
+/* Inside a block, the box is drawn by <pre> — drop the inline chip's own
+   background/border/radius so it doesn't double up. */
+.note-body-input pre code { background: none; border: none; border-radius: 0; padding: 0; }
 .note-body-input a { color: var(--link, #2563EB); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.note-body-input blockquote {
+  margin: 0.7em 0; padding: 0.1em 0 0.1em 1em;
+  border-left: 3px solid var(--border-mid);
+  color: var(--text-2); font-size: 1.15em; font-style: italic; line-height: 1.5;
+}
 
 .tags-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .editor-tag-chip {
@@ -836,6 +942,18 @@ body {
 .move-folder-option:hover { background: var(--bg); }
 .move-folder-option.current { color: var(--text-faint); cursor: default; }
 .move-folder-option svg { color: var(--text-muted); flex-shrink: 0; }
+.move-folder-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Expand/collapse control in the picker. The spacer keeps names aligned for
+   folders that have no children. */
+.move-folder-chev, .move-folder-chev-spacer {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; flex-shrink: 0; border-radius: 4px;
+}
+.move-folder-chev { cursor: pointer; transition: transform 0.15s, background 0.1s; }
+.move-folder-chev:hover { background: var(--border); }
+.move-folder-chev.open { transform: rotate(90deg); }
+/* The list itself scrolls instead of growing past the modal / viewport. */
+#move-folder-list { max-height: min(55vh, 380px); overflow-y: auto; }
 
 /* ── Toast ───────────────────────────────────────────────────────────── */
 
@@ -935,6 +1053,22 @@ body {
   color: var(--text-muted);
   padding: 0 4px;
   margin-bottom: 8px;
+}
+
+/* Changelog / What's New */
+.changelog-entry { padding: 14px 4px; border-bottom: 1px solid var(--divider); }
+.changelog-entry:last-child { border-bottom: none; }
+.changelog-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.changelog-version { font-size: var(--fs-14); font-weight: 600; color: var(--text); }
+.changelog-date { font-size: var(--fs-12); color: var(--text-muted); }
+.changelog-changes { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.changelog-changes li {
+  position: relative; padding-left: 15px;
+  font-size: var(--fs-13); color: var(--text-2); line-height: 1.5;
+}
+.changelog-changes li::before {
+  content: '•'; position: absolute; left: 3px; top: -0.02em;
+  color: var(--text-faint);
 }
 
 .settings-group-rows {

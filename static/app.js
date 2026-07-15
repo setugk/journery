@@ -57,6 +57,7 @@ const searchInput    = $("search-input");
 const navRecents     = $("nav-recents");
 const formatBar      = $("format-bar");
 const stickyFormatBar = $("sticky-format-bar");
+const formatToggleBtn = $("format-toggle-btn");
 const bodyPlaceholder = $("note-body-placeholder");
 const notesPaneEl    = $("notes-pane");
 const bulkActionBar  = $("bulk-action-bar");
@@ -64,6 +65,7 @@ const bulkCountEl    = $("bulk-count");
 
 let editingTag = null;
 let movingFolderNode = null;
+let moveExpanded = new Set();   // folder ids expanded in the move-to-folder picker
 let contextMenuNote = null;
 
 // ── API helpers ───────────────────────────────────────────────────────────────
@@ -325,8 +327,56 @@ function updateRecentsRangePicker() {
 }
 
 const SETTINGS_SECTION_LABELS = {
-  general: "General", sidebar: "Sidebar", tags: "Tags", themes: "Themes", data: "Data",
+  general: "General", changelog: "What's New", sidebar: "Sidebar", tags: "Tags", themes: "Themes", data: "Data",
 };
+
+// User-facing changelog. Curated highlights only — major features per release,
+// with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
+const CHANGELOG = [
+  { version: "1.16", date: "July 2026", changes: [
+    "Checklists — tap the box to tick things off",
+    "Nested lists: Tab to indent, with bullets that change shape by depth",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.15", date: "July 2026", changes: [
+    "Pull quotes and code blocks in the editor",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.14", date: "July 2026", changes: [
+    "Add links to your text",
+    "Smoother typing and scrolling on iPhone",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.10", date: "July 2026", changes: [
+    "Trash with 30-day recovery for deleted notes",
+    "Redesigned full-screen Settings",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.6", date: "June 2026", changes: [
+    "20+ editor themes",
+    "Faster, smarter search",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.1", date: "June 2026", changes: [
+    "Journery is born — folders, tags, a rich-text editor, dark mode, and add-to-home-screen",
+  ]},
+];
+
+function renderChangelog() {
+  const el = $("changelog-list");
+  if (!el) return;
+  el.innerHTML = CHANGELOG.map(entry => `
+    <div class="changelog-entry">
+      <div class="changelog-head">
+        <span class="changelog-version">Version ${esc(entry.version)}</span>
+        <span class="changelog-date">${esc(entry.date)}</span>
+      </div>
+      <ul class="changelog-changes">
+        ${entry.changes.map(c => `<li>${esc(c)}</li>`).join("")}
+      </ul>
+    </div>
+  `).join("");
+}
 
 function openSettingsSection(section) {
   document.querySelectorAll(".settings-cat-item").forEach(btn => {
@@ -335,6 +385,7 @@ function openSettingsSection(section) {
   document.querySelectorAll(".settings-panel").forEach(panel => {
     panel.classList.toggle("hidden", panel.id !== `settings-panel-${section}`);
   });
+  if (section === "changelog") renderChangelog();
   if (section === "tags") renderSettingsTags();
   if (section === "themes") renderThemeGrid();
   if (isMobile()) {
@@ -1537,7 +1588,7 @@ tagInput.addEventListener("blur", () => {
 
 function bodyToHtml(text) {
   if (!text) return '';
-  if (/<(p|ul|ol|li|div|b|i|u|s|br|strong|em|h1|h2|h3|a|code)\b/i.test(text)) return text;
+  if (/<(p|ul|ol|li|div|b|i|u|s|br|strong|em|h1|h2|h3|a|code|blockquote|pre)\b/i.test(text)) return text;
   return text
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/\n/g, '<br>');
@@ -1728,11 +1779,127 @@ noteBody.addEventListener("paste", e => {
 
 // ── Editor keyboard shortcuts ─────────────────────────────────────────────────
 
+// The <li> the caret is currently in (innermost), or null if not in a list.
+function currentLi() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  let n = sel.getRangeAt(0).commonAncestorContainer;
+  n = n.nodeType === Node.TEXT_NODE ? n.parentElement : n;
+  const li = n?.closest?.('li');
+  return li && noteBody.contains(li) ? li : null;
+}
+
+// Nest a list item under the item above it. WebKit's execCommand('indent')
+// can't be trusted for this — it wraps the item in a <blockquote> instead of a
+// nested list in many cases, which then renders as a stray accent bar. So do
+// the move by hand: append the <li> to a sublist (of the same list type)
+// hanging off the previous sibling, creating that sublist if needed.
+function indentLi(li) {
+  const prev = li.previousElementSibling;
+  if (!prev || prev.tagName !== 'LI') return; // first item has nothing to nest under
+  const parentList = li.parentElement;
+  const listTag = parentList.tagName;         // UL or OL — keep the list type
+  let sub = prev.lastElementChild;
+  if (!sub || (sub.tagName !== 'UL' && sub.tagName !== 'OL')) {
+    sub = document.createElement(listTag);
+    if (parentList.classList.contains('task-list')) sub.classList.add('task-list');
+    prev.appendChild(sub);
+  }
+  sub.appendChild(li);
+}
+
+// Un-nest one level. If the item lives in a nested sublist, lift it to be a
+// sibling of the <li> that hosts that sublist (carrying any items below it into
+// a new sublist under itself, so their relative nesting is preserved). At the
+// top level, drop out of the list entirely into a plain <div>.
+function outdentLi(li) {
+  const list = li.parentElement;          // the ul/ol directly containing li
+  const host = list.parentElement;        // the <li> hosting it (nested) or a block
+  const after = [];
+  for (let s = li.nextElementSibling; s; s = s.nextElementSibling) after.push(s);
+  if (host && host.tagName === 'LI') {
+    host.after(li);
+    if (after.length) {
+      const sub = document.createElement(list.tagName);
+      after.forEach(x => sub.appendChild(x));
+      li.appendChild(sub);
+    }
+    if (!list.children.length) list.remove();
+    return li;                    // lifted item — caret goes here
+  } else {
+    const div = document.createElement('div');
+    while (li.firstChild) div.appendChild(li.firstChild);
+    if (!div.hasChildNodes()) div.appendChild(document.createElement('br'));
+    list.after(div);
+    if (after.length) {
+      const newList = document.createElement(list.tagName);
+      after.forEach(x => newList.appendChild(x));
+      div.after(newList);
+    }
+    li.remove();
+    if (!list.children.length) list.remove();
+    return div;                   // dropped out of the list — caret goes here
+  }
+}
+
+// An <li> with no text of its own and no nested sublist — a leaf empty bullet.
+function liIsEmpty(li) {
+  if (li.querySelector('ul, ol')) return false;
+  return li.textContent.replace(/[\u200B\uFEFF\u00A0]/g, '').trim() === '';
+}
+
+function placeCaretIn(el) {
+  const sel = window.getSelection();
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  r.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(r);
+}
+
 noteBody.addEventListener("keydown", e => {
   if (e.key === "Tab") {
     e.preventDefault();
-    document.execCommand('insertText', false, '  ');
+    // In a list, Tab/Shift+Tab nest/un-nest the item (like every other editor).
+    // Outside a list, Tab inserts a soft 2-space indent; Shift+Tab is a no-op.
+    const li = currentLi();
+    if (li) {
+      const sel = window.getSelection();
+      const r = sel.rangeCount ? sel.getRangeAt(0) : null;
+      const sc = r && r.startContainer, so = r ? r.startOffset : 0;
+      if (e.shiftKey) outdentLi(li); else indentLi(li);
+      // Manual DOM edits don't fire `input`, and moving nodes drops the
+      // selection — restore the caret to the same text node/offset (which
+      // moved intact) and save explicitly.
+      if (sc) {
+        try {
+          const nr = document.createRange();
+          nr.setStart(sc, so); nr.collapse(true);
+          sel.removeAllRanges(); sel.addRange(nr);
+        } catch (_) {}
+      }
+      updateNoteBodyPlaceholder();
+      scheduleSave();
+    } else if (!e.shiftKey) {
+      document.execCommand('insertText', false, '  ');
+    }
     return;
+  }
+
+  // Enter on an EMPTY bullet steps out one nesting level (and off the list
+  // entirely at the top level) instead of spawning another empty bullet —
+  // the standard "Enter twice to leave the list" behavior. On a bullet with
+  // text, Enter falls through to the browser's native new-item-at-same-level.
+  if (e.key === "Enter" && !e.shiftKey) {
+    const li = currentLi();
+    if (li && liIsEmpty(li)) {
+      e.preventDefault();
+      const target = outdentLi(li);   // moved <li> (nested) or new <div> (top level)
+      if (target) placeCaretIn(target);
+      updateNoteBodyPlaceholder();
+      scheduleSave();
+      return;
+    }
   }
 
   if (e.metaKey || e.ctrlKey) {
@@ -1778,14 +1945,31 @@ function selectionInEditor() {
 // header, and doesn't need to know the keyboard or viewport exist at all.
 const isTouch = matchMedia("(hover: none)").matches;
 
-function showStickyFormatBar() {
+// The touch formatting bar is off by default (noise while writing) and revealed
+// on demand via the header's Formatting toggle. Its open/closed state is a
+// remembered preference so it stays where the user left it.
+let formatBarOpen = localStorage.getItem("formatBarOpen") === "true";
+
+function applyFormatBar() {
   if (!isTouch) return;
-  stickyFormatBar.classList.remove("hidden");
+  stickyFormatBar.classList.toggle("open", formatBarOpen);
+  formatToggleBtn.classList.toggle("active", formatBarOpen);
 }
 
-function hideStickyFormatBar() {
-  stickyFormatBar.classList.add("hidden");
+let lastFmtToggleAt = 0;
+function toggleFormatBar() {
+  const now = Date.now();
+  if (now - lastFmtToggleAt < 350) return;   // dedupe touch + its synthetic mouse event
+  lastFmtToggleAt = now;
+  formatBarOpen = !formatBarOpen;
+  localStorage.setItem("formatBarOpen", formatBarOpen);
+  applyFormatBar();
 }
+
+// Toggle on pointer-DOWN + preventDefault so tapping it never blurs the note —
+// the keyboard and selection stay put while the bar drops in/out.
+formatToggleBtn.addEventListener("mousedown", e => { e.preventDefault(); toggleFormatBar(); });
+formatToggleBtn.addEventListener("touchstart", e => { e.preventDefault(); toggleFormatBar(); }, { passive: false });
 
 // The shell is sized to the space above the keyboard (see syncAppViewport), so
 // iOS no longer window-scrolls to reveal the caret — which also means it no
@@ -1815,11 +1999,31 @@ function scrollCaretIntoView() {
   }
 }
 
+// Each format bar binds both a mousedown handler and a touch handler to the
+// same buttons (needed because plain "click" fires too late — the selection
+// is already gone by then on iOS). Calling preventDefault() on the touch
+// event is supposed to suppress the browser's synthetic mouse events that
+// follow a real tap, but that suppression isn't watertight in every WebKit
+// context (PWA vs Safari tab), so a single tap can occasionally invoke
+// applyFormat twice — once from touch, once from the synthetic mouse event.
+// For toggle commands like bold/italic that's invisible (on-then-off nets no
+// visible change), but for 'code' (which manually wraps/unwraps a DOM
+// element rather than using execCommand's own toggle) it's very visible: the
+// box appears and then immediately vanishes. Guard every tap through here so
+// a duplicate invocation within the ghost-click window is ignored outright.
+let lastFormatTapAt = 0;
+function tapFormat(fmt) {
+  const now = Date.now();
+  if (now - lastFormatTapAt < 350) return;
+  lastFormatTapAt = now;
+  applyFormat(fmt);
+}
+
 stickyFormatBar.addEventListener("mousedown", e => {
   const btn = e.target.closest("[data-fmt]");
   if (!btn) return;
   e.preventDefault();
-  applyFormat(btn.dataset.fmt);
+  tapFormat(btn.dataset.fmt);
 });
 // The bar scrolls horizontally, and most of its width is buttons, so a
 // touchstart can't just preventDefault + apply immediately — that cancels
@@ -1843,11 +2047,11 @@ stickyFormatBar.addEventListener("touchend", e => {
   const btn = e.target.closest("[data-fmt]");
   if (!btn || fmtTouchMoved) return;
   e.preventDefault();
-  applyFormat(btn.dataset.fmt);
+  tapFormat(btn.dataset.fmt);
 });
 
 function showFormatBar() {
-  if (isTouch) return; // touch uses the sticky bar instead — see showStickyFormatBar
+  if (isTouch) return; // touch uses the sticky bar instead — see applyFormatBar / toggleFormatBar
   if (!state.note || !selectionInEditor()) { hideFormatBar(); return; }
 
   const sel  = window.getSelection();
@@ -1879,14 +2083,10 @@ noteBody.addEventListener("touchend", () => requestAnimationFrame(showFormatBar)
 noteBody.addEventListener("keyup",   () => requestAnimationFrame(showFormatBar));
 // The sticky bar only makes sense while there's a cursor/keyboard active
 // in the note — not persistently whenever a note happens to be open.
-noteBody.addEventListener("focus", () => { if (isTouch) showStickyFormatBar(); });
+// The sticky bar is now preference-driven (header toggle), not focus-driven, so
+// focus/blur no longer show or hide it — it persists per the user's choice.
 noteBody.addEventListener("blur", () => {
-  if (isTouch) {
-    setTimeout(() => {
-      if (!stickyFormatBar.contains(document.activeElement)) hideStickyFormatBar();
-    }, 180);
-    return;
-  }
+  if (isTouch) return;
   setTimeout(() => { if (!formatBar.contains(document.activeElement)) hideFormatBar(); }, 180);
 });
 document.addEventListener("selectionchange", () => {
@@ -1903,31 +2103,81 @@ document.addEventListener("selectionchange", () => {
 
 function applyFormat(fmt) {
   noteBody.focus();
-  if (fmt === 'p' || fmt === 'h1' || fmt === 'h2' || fmt === 'h3') {
+  if (fmt === 'p' || fmt === 'h1' || fmt === 'h2' || fmt === 'h3' || fmt === 'quote') {
     // 'p' always drops back to plain body text — the explicit way out of
     // a heading, rather than relying on re-clicking the same heading to
     // toggle it off (still supported below, but easy to forget which
     // level you're on). Toggle: re-applying the same heading to a block
     // that's already that heading reverts it to a plain paragraph (div),
     // matching how bullet/numbered lists already toggle off via execCommand.
+    // 'quote' maps to the native blockquote element — same toggle behavior.
     const current = document.queryCommandValue('formatBlock').toLowerCase();
-    document.execCommand('formatBlock', false, fmt === 'p' ? 'div' : (current === fmt ? 'div' : fmt));
+    const block = fmt === 'p' ? 'div' : fmt === 'quote' ? 'blockquote' : fmt;
+    document.execCommand('formatBlock', false, current === block ? 'div' : block);
     scheduleSave();
     if (!isTouch) requestAnimationFrame(showFormatBar);
     return;
   }
   if (fmt === 'code') {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) return;
+    if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     const ancestor = range.commonAncestorContainer;
-    const codeEl = (ancestor.nodeType === Node.TEXT_NODE ? ancestor.parentElement : ancestor)?.closest?.('code');
-    if (codeEl) {
+    const el = ancestor.nodeType === Node.TEXT_NODE ? ancestor.parentElement : ancestor;
+    const preEl  = el?.closest?.('pre');
+    const codeEl = el?.closest?.('code');
+
+    // ── Toggle off ── (works with a collapsed caret too, not just a selection)
+    if (preEl && noteBody.contains(preEl)) {
+      // Multi-line block → unwrap into one plain div per line, matching the
+      // editor's one-top-level-div-per-line convention so the result reads the
+      // same as if it had never been code-formatted.
+      const frag = document.createDocumentFragment();
+      let lastDiv = null;
+      preEl.textContent.replace(/\n$/, '').split('\n').forEach(line => {
+        const div = document.createElement('div');
+        if (line === '') div.appendChild(document.createElement('br'));
+        else div.textContent = line;
+        frag.appendChild(div);
+        lastDiv = div;
+      });
+      preEl.replaceWith(frag);
+      if (lastDiv) {
+        const r = document.createRange();
+        r.selectNodeContents(lastDiv);
+        r.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(r);
+      }
+      scheduleSave();
+      if (!isTouch) requestAnimationFrame(showFormatBar);
+      return;
+    }
+    if (codeEl && noteBody.contains(codeEl)) {
       const text = document.createTextNode(codeEl.textContent);
       codeEl.replaceWith(text);
+      noteBody.normalize();
+      scheduleSave();
+      if (!isTouch) requestAnimationFrame(showFormatBar);
+      return;
+    }
+
+    // ── Apply ── (needs a real selection)
+    if (sel.isCollapsed) return;
+    // Detect multi-line via the SELECTED TEXT, not the DOM shape: the browser
+    // serializes <br> and block boundaries as \n regardless of whether the
+    // lines are separate <div>s or <br>-separated inside one div, and
+    // regardless of where the range boundaries land (they're often on noteBody
+    // itself for "select all"). Inline <code> has white-space:normal and would
+    // collapse those newlines into spaces, so anything with a newline becomes a
+    // real <pre><code> block instead. insertHTML replaces the selection across
+    // blocks cleanly (manual node surgery broke on the single-div/<br> case).
+    const selectedText = sel.toString();
+    const esc = selectedText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (selectedText.includes('\n')) {
+      document.execCommand('insertHTML', false, `<pre><code>${esc}</code></pre>`);
     } else {
-      const text = sel.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      document.execCommand('insertHTML', false, `<code>${text}</code>`);
+      document.execCommand('insertHTML', false, `<code>${esc}</code>`);
     }
     scheduleSave();
     if (!isTouch) requestAnimationFrame(showFormatBar);
@@ -1954,6 +2204,25 @@ function applyFormat(fmt) {
     openLinkModal(range.cloneRange());
     return;
   }
+  if (fmt === 'checklist') {
+    // A checklist is a <ul class="task-list">: the checkbox is drawn as the
+    // list marker (CSS ::before), so native Enter continuation and Tab nesting
+    // keep working and each new line gets its own checkbox for free.
+    const li = currentLi();
+    const list = li && li.parentElement;
+    if (list && list.classList.contains('task-list')) {
+      document.execCommand('insertUnorderedList');           // toggle off → plain lines
+    } else if (list && list.tagName === 'UL') {
+      list.classList.add('task-list');                       // bullet list → checklist, in place
+    } else {
+      document.execCommand('insertUnorderedList');           // plain/ordered → make a list…
+      const ul = currentLi()?.parentElement;
+      if (ul && ul.tagName === 'UL') ul.classList.add('task-list');  // …then tag it
+    }
+    scheduleSave();
+    if (!isTouch) requestAnimationFrame(showFormatBar);
+    return;
+  }
   const execCmds = {
     bold:      'bold',
     italic:    'italic',
@@ -1976,7 +2245,7 @@ formatBar.addEventListener("mousedown", e => {
   const btn = e.target.closest("[data-fmt]");
   if (!btn) return;
   e.preventDefault();
-  applyFormat(btn.dataset.fmt);
+  tapFormat(btn.dataset.fmt);
 });
 // touchstart (not click) so preventDefault fires before iOS collapses the
 // selection for touching outside the editor.
@@ -1984,7 +2253,7 @@ formatBar.addEventListener("touchstart", e => {
   const btn = e.target.closest("[data-fmt]");
   if (!btn) return;
   e.preventDefault();
-  applyFormat(btn.dataset.fmt);
+  tapFormat(btn.dataset.fmt);
 }, { passive: false });
 
 // ── Links ─────────────────────────────────────────────────────────────────────
@@ -2058,6 +2327,31 @@ noteBody.addEventListener("click", e => {
   const href = a.getAttribute("href");
   if (href) window.open(href, "_blank", "noopener,noreferrer");
 });
+
+// Tick/untick a checklist item by tapping its checkbox — the marker drawn in
+// the gutter just left of the text. Handled on pointer-DOWN (not click) and
+// preventDefault'd so the tap never focuses the editor: otherwise iOS raises
+// the keyboard first and only then registers the tick. Tapping the text itself
+// (outside the gutter) is left alone, so editing still focuses normally.
+let lastCheckToggleAt = 0;
+function tryToggleCheckbox(e, clientX) {
+  const li = e.target.closest?.("li");
+  if (!li || !noteBody.contains(li)) return;
+  if (!li.parentElement?.classList.contains("task-list")) return;
+  const rect = li.getBoundingClientRect();
+  const em = parseFloat(getComputedStyle(li).fontSize) || 16;
+  if (clientX >= rect.left || clientX < rect.left - em * 2) return; // not in the checkbox gutter
+  e.preventDefault();                       // stop focus → keyboard stays as-is
+  const now = Date.now();
+  if (now - lastCheckToggleAt < 350) return; // ignore the synthetic-mouse duplicate after touch
+  lastCheckToggleAt = now;
+  li.classList.toggle("done");
+  scheduleSave();
+}
+noteBody.addEventListener("mousedown", e => tryToggleCheckbox(e, e.clientX));
+noteBody.addEventListener("touchstart", e => {
+  if (e.touches[0]) tryToggleCheckbox(e, e.touches[0].clientX);
+}, { passive: false });
 
 // ── Copy note ─────────────────────────────────────────────────────────────────
 
@@ -2368,57 +2662,80 @@ $("move-note-btn").addEventListener("click", () => {
   openMoveModal();
 });
 
+// Resolve the picker's labels/current-selection/exclusions for whichever move
+// is in progress (moving a folder vs. moving a note or bulk selection).
+function moveFolderConfig() {
+  if (movingFolderNode) {
+    const node = movingFolderNode;
+    return {
+      rootLabel: "Top level (no parent)",
+      isCurrentRoot: node.parent_id === null,
+      isCurrent: n => n.id === node.parent_id,
+      excluded: getDescendantIds(node.id),   // can't move a folder into its own subtree
+    };
+  }
+  const moveTarget = contextMenuNote || state.note;
+  return {
+    rootLabel: "No folder (root)",
+    isCurrentRoot: !state.selectMode && moveTarget?.folder_id === null,
+    isCurrent: n => !state.selectMode && moveTarget?.folder_id === n.id,
+    excluded: null,
+  };
+}
+
+// Render the picker respecting collapse state — only descend into a folder's
+// children when it's in `moveExpanded`. Folders start collapsed, so the list
+// opens short and scrollable instead of dumping the whole tree.
+function renderMoveFolderList() {
+  const list = $("move-folder-list");
+  const cfg  = moveFolderConfig();
+  list.innerHTML = "";
+  list.appendChild(makeMoveFolderOption(null, cfg.rootLabel, cfg.isCurrentRoot, 0, false, false));
+
+  const walk = (node, depth) => {
+    if (cfg.excluded && cfg.excluded.has(node.id)) return;
+    const kids = node.children.filter(c => !cfg.excluded || !cfg.excluded.has(c.id));
+    const hasKids = kids.length > 0;
+    const expanded = moveExpanded.has(node.id);
+    list.appendChild(makeMoveFolderOption(node.id, node.name, cfg.isCurrent(node), depth, hasKids, expanded));
+    if (hasKids && expanded) kids.forEach(c => walk(c, depth + 1));
+  };
+  buildTree(state.folders).forEach(n => walk(n, 0));
+}
+
 function openMoveModal() {
   movingFolderNode = null;
-  const modal = $("move-modal");
-  const list  = $("move-folder-list");
+  moveExpanded = new Set();                       // collapsed to begin with
   $("move-modal-title").textContent = "Move to folder";
-  list.innerHTML = "";
-
-  const moveTarget = contextMenuNote || state.note;
-  const rootBtn = makeMoveFolderOption(null, "No folder (root)", !state.selectMode && moveTarget?.folder_id === null);
-  list.appendChild(rootBtn);
-
-  function addFolder(node, depth = 0) {
-    const isCurrent = !state.selectMode && moveTarget?.folder_id === node.id;
-    const btn = makeMoveFolderOption(node.id, node.name, isCurrent, depth);
-    list.appendChild(btn);
-    node.children.forEach(child => addFolder(child, depth + 1));
-  }
-  buildTree(state.folders).forEach(n => addFolder(n));
-
-  modal.classList.remove("hidden");
+  renderMoveFolderList();
+  $("move-modal").classList.remove("hidden");
 }
 
 function openFolderMoveModal(node) {
   movingFolderNode = node;
-  const modal = $("move-modal");
-  const list  = $("move-folder-list");
+  moveExpanded = new Set();
   $("move-modal-title").textContent = `Move "${node.name}" to…`;
-  list.innerHTML = "";
-
-  const excluded = getDescendantIds(node.id);
-
-  const rootBtn = makeMoveFolderOption(null, "Top level (no parent)", node.parent_id === null);
-  list.appendChild(rootBtn);
-
-  function addFolder(n, depth = 0) {
-    if (excluded.has(n.id)) return;
-    const isCurrent = n.id === node.parent_id;
-    const btn = makeMoveFolderOption(n.id, n.name, isCurrent, depth);
-    list.appendChild(btn);
-    n.children.forEach(child => addFolder(child, depth + 1));
-  }
-  buildTree(state.folders).forEach(n => addFolder(n));
-
-  modal.classList.remove("hidden");
+  renderMoveFolderList();
+  $("move-modal").classList.remove("hidden");
 }
 
-function makeMoveFolderOption(folderId, name, isCurrent, depth = 0) {
+function makeMoveFolderOption(folderId, name, isCurrent, depth = 0, hasKids = false, expanded = false) {
   const btn = document.createElement("button");
   btn.className = "move-folder-option" + (isCurrent ? " current" : "");
   btn.style.paddingLeft = (8 + depth * 16) + "px";
-  btn.innerHTML = `${FOLDER_SVG}<span>${esc(name)}</span>${isCurrent ? "<small>(current)</small>" : ""}`;
+  const chev = hasKids
+    ? `<span class="move-folder-chev${expanded ? " open" : ""}" role="button" aria-label="Expand">${CHEV_SVG}</span>`
+    : `<span class="move-folder-chev-spacer"></span>`;
+  btn.innerHTML = `${chev}${FOLDER_SVG}<span class="move-folder-name">${esc(name)}</span>${isCurrent ? "<small>(current)</small>" : ""}`;
+  if (hasKids) {
+    // Chevron toggles expansion without selecting the folder as the target.
+    btn.querySelector(".move-folder-chev").addEventListener("click", e => {
+      e.stopPropagation();
+      if (moveExpanded.has(folderId)) moveExpanded.delete(folderId);
+      else moveExpanded.add(folderId);
+      renderMoveFolderList();
+    });
+  }
   if (!isCurrent) {
     btn.addEventListener("click", async () => {
       $("move-modal").classList.add("hidden");
@@ -2740,4 +3057,8 @@ updateFoldersVisibility();
 navAllNotes.classList.add("active");
 showEditorEmpty();
 setMobileView("sidebar");
+// The Formatting toggle only drives the touch sticky bar; on desktop the
+// floating-on-selection bar is used instead, so hide the toggle there.
+if (!isTouch) formatToggleBtn.style.display = "none";
+applyFormatBar();
 loadAll();
