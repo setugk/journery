@@ -10,3 +10,26 @@ Notion Export/
 
 # Private content dumps from one-time migrations — never commit (real journal data)
 notion_*.json
+
+# Personal ops tooling — deploy/backup/restore scripts, NAS configs, launchd jobs.
+# These reference a private NAS + local paths and aren't part of the shippable app.
+deploy.sh
+deploy-demo.sh
+promote.sh
+rebuild.sh
+rebuild-beta.sh
+rebuild-demo.sh
+backup_*.sh
+restore.py
+seed-beta.json
+docker-compose-agrams.yml
+*.plist
+
+# One-time personal data-migration scripts (Notion/Evernote/Bear imports)
+import_notion.py
+import_txt.py
+sync_notion.py
+archive_bear_notes.py
+fix_evernote_dates.py
+fix_evernote_dates_ambiguous.py
+reorganize_journal.py
