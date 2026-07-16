@@ -60,6 +60,7 @@ const navRecents     = $("nav-recents");
 const formatBar      = $("format-bar");
 const stickyFormatBar = $("sticky-format-bar");
 const formatToggleBtn = $("format-toggle-btn");
+const offlinePill = $("offline-pill");
 const bodyPlaceholder = $("note-body-placeholder");
 const notesPaneEl    = $("notes-pane");
 const bulkActionBar  = $("bulk-action-bar");
@@ -335,6 +336,10 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.22", date: "July 2026", changes: [
+    "Works offline — opens and shows your latest notes without a connection (read-only for now)",
+    "Bug fixes & improvements",
+  ]},
   { version: "1.20", date: "July 2026", changes: [
     "Export your notes as Markdown files — take them anywhere, no lock-in",
     "Larger, clearer note titles",
@@ -3096,4 +3101,23 @@ if (!isTouch) {
   $("settings-formatbar-row").style.display = "none";
 }
 applyFormatBar();
+
+// ── Offline (Phase 1) ─────────────────────────────────────────────────────────
+// Register the service worker so the app shell + last-synced notes load offline
+// (read-only for now). Failure is non-fatal — the app just runs online-only.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  });
+}
+// Show an "Offline" pill so it's clear edits won't save yet. navigator.onLine
+// catches airplane-mode / no-network; a save that fails while "online" (e.g. the
+// server is unreachable) still surfaces as "Save failed" in the editor.
+function updateOfflinePill() {
+  offlinePill.classList.toggle("hidden", navigator.onLine);
+}
+window.addEventListener("online", updateOfflinePill);
+window.addEventListener("offline", updateOfflinePill);
+updateOfflinePill();
+
 loadAll();

@@ -972,6 +972,22 @@ body {
 }
 .toast.hidden { opacity: 0; transform: translateX(-50%) translateY(6px); }
 
+/* Offline indicator — a small pill so it's clear edits won't save yet. */
+.offline-pill {
+  position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 7px;
+  background: var(--surface); color: var(--text-muted);
+  border: 1px solid var(--border-mid); border-radius: 20px;
+  padding: 7px 15px; font-size: var(--fs-12); font-weight: 500; white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  z-index: 890; pointer-events: none;
+}
+.offline-pill::before {
+  content: ''; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--text-faint); flex-shrink: 0;
+}
+.offline-pill.hidden { display: none; }
+
 /* ── Settings view ─────────────────────────────────────────────────────── */
 
 /* Full-screen overlay. Body-level element with no transformed ancestors, so

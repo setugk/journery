@@ -22,7 +22,7 @@ JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 STATIC_VERSION  = str(int(time.time()))
-APP_VERSION     = "1.21.2"
+APP_VERSION     = "1.22.0"
 
 
 def requires_auth(f):
@@ -447,6 +447,18 @@ def set_setting(key):
 @requires_auth
 def sync():
     return jsonify({"version": db.get_sync_version()})
+
+
+@app.route("/sw.js")
+def service_worker():
+    # Served from the root so its scope covers the whole app. Re-rendered each
+    # deploy (static_v changes) so the browser sees a new SW and refreshes the
+    # cached shell. no-cache so the browser always re-checks for a new version.
+    return Response(
+        render_template("sw.js", static_v=STATIC_VERSION),
+        mimetype="application/javascript",
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @app.route("/manifest.json")
