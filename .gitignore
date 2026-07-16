@@ -35,3 +35,8 @@ archive_bear_notes.py
 fix_evernote_dates.py
 fix_evernote_dates_ambiguous.py
 reorganize_journal.py
+
+# Local native-run artifacts
+__pycache__/
+*.pyc
+.venv/

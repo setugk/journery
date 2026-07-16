@@ -3,7 +3,9 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-DB_PATH = "/data/clippery.db"
+# Defaults to the container's /data volume; override with JOURNERY_DB to run
+# natively (e.g. JOURNERY_DB=~/journery-data/journery.db, no Docker needed).
+DB_PATH = os.path.expanduser(os.environ.get("JOURNERY_DB", "/data/clippery.db"))
 
 
 def get_conn():

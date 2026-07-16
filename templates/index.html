@@ -357,6 +357,25 @@
             </div>
           </div>
           <div class="settings-group">
+            <div class="settings-group-title">Editor</div>
+            <div class="settings-group-rows">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">Show dates</div>
+                  <div class="settings-row-desc">Display created &amp; edited dates on a note</div>
+                </div>
+                <button class="toggle-switch" id="settings-dates-toggle"></button>
+              </div>
+              <div class="settings-row" id="settings-formatbar-row">
+                <div>
+                  <div class="settings-row-label">Show formatting bar</div>
+                  <div class="settings-row-desc">Keep the formatting toolbar open while writing</div>
+                </div>
+                <button class="toggle-switch" id="settings-formatbar-toggle"></button>
+              </div>
+            </div>
+          </div>
+          <div class="settings-group">
             <div class="settings-group-title">About</div>
             <div class="settings-group-rows">
               <div class="settings-row">
@@ -427,12 +446,36 @@
           <div class="settings-group">
             <div class="settings-group-title">Export</div>
             <div class="settings-group-rows">
+              <div class="settings-row no-demo">
+                <div>
+                  <div class="settings-row-label">Export as Markdown</div>
+                  <div class="settings-row-desc">A .zip of .md files, with tags &amp; dates — opens in Obsidian, Bear, or any editor</div>
+                </div>
+                <a href="/api/export/markdown" class="settings-export-link">Download .zip</a>
+              </div>
               <div class="settings-row">
-                <div class="settings-row-label">Export all notes</div>
+                <div>
+                  <div class="settings-row-label">Export as JSON</div>
+                  <div class="settings-row-desc">Full backup — re-imports into Journery</div>
+                </div>
                 <a href="/api/export" class="settings-export-link">Download JSON</a>
               </div>
             </div>
           </div>
+          {% if markdown_mirror %}
+          <div class="settings-group">
+            <div class="settings-group-title">Markdown mirror</div>
+            <div class="settings-group-rows">
+              <div class="settings-row">
+                <div>
+                  <div class="settings-row-label">Live Markdown mirror</div>
+                  <div class="settings-row-desc">Every note is kept as a plain .md file in your mounted folder, updated on each change</div>
+                </div>
+                <span class="settings-row-value mirror-on">On</span>
+              </div>
+            </div>
+          </div>
+          {% endif %}
           <!-- Demo only: reset to sample data -->
           <div class="settings-group demo-only">
             <div class="settings-group-title">Demo</div>

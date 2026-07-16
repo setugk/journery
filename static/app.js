@@ -25,6 +25,8 @@ const state = {
   pinnedTags: JSON.parse(localStorage.getItem("pinnedTags") || "[]"),
   // Folder visibility
   showFolders: localStorage.getItem("showFolders") === "true",
+  // Show created/edited dates in the note editor (default on)
+  showNoteDates: localStorage.getItem("showNoteDates") !== "false",
   dirty: false,
   saving: false,
   syncVersion: "",
@@ -333,6 +335,25 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.21", date: "July 2026", changes: [
+    "Live Markdown mirror — keep every note as a plain .md file in a folder you control, updated automatically (opt-in)",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.20", date: "July 2026", changes: [
+    "Export your notes as Markdown files — take them anywhere, no lock-in",
+    "Larger, clearer note titles",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.19", date: "July 2026", changes: [
+    "Show or hide the created & edited dates on a note (Settings → General)",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.18", date: "July 2026", changes: [
+    "Show or hide the formatting bar with the new toolbar button — a cleaner writing space",
+    "Tick off checklist items without the keyboard popping up",
+    "This What's New page in Settings",
+    "Bug fixes & improvements",
+  ]},
   { version: "1.16", date: "July 2026", changes: [
     "Checklists — tap the box to tick things off",
     "Nested lists: Tab to indent, with bullets that change shape by depth",
@@ -407,6 +428,8 @@ function closeSettings() {
 
 function openSettings() {
   $("settings-folders-toggle").classList.toggle("on", state.showFolders);
+  $("settings-dates-toggle").classList.toggle("on", state.showNoteDates);
+  $("settings-formatbar-toggle").classList.toggle("on", formatBarOpen);
   updateDatePicker();
   updateRecentsRangePicker();
   $("settings-view").dataset.pane = "list";
@@ -569,6 +592,18 @@ $("settings-folders-toggle").addEventListener("click", () => {
   localStorage.setItem("showFolders", state.showFolders);
   $("settings-folders-toggle").classList.toggle("on", state.showFolders);
   updateFoldersVisibility();
+});
+$("settings-dates-toggle").addEventListener("click", () => {
+  state.showNoteDates = !state.showNoteDates;
+  localStorage.setItem("showNoteDates", state.showNoteDates);
+  $("settings-dates-toggle").classList.toggle("on", state.showNoteDates);
+  renderNoteDates(state.note);   // reflect immediately on the open note
+});
+$("settings-formatbar-toggle").addEventListener("click", () => {
+  formatBarOpen = !formatBarOpen;               // same preference the header "T" toggle uses
+  localStorage.setItem("formatBarOpen", formatBarOpen);
+  $("settings-formatbar-toggle").classList.toggle("on", formatBarOpen);
+  applyFormatBar();
 });
 
 // ── Sidebar rendering ─────────────────────────────────────────────────────────
@@ -1400,7 +1435,7 @@ function formatDateFull(iso) {
 
 function renderNoteDates(note) {
   const el = $("note-dates");
-  if (!note || !note.id) { el.classList.add("hidden"); return; }
+  if (!note || !note.id || !state.showNoteDates) { el.classList.add("hidden"); return; }
   el.classList.remove("hidden");
   const editedDiff = new Date(note.updated_at) - new Date(note.created_at);
   const showEdited = editedDiff > 60000;
@@ -3058,7 +3093,11 @@ navAllNotes.classList.add("active");
 showEditorEmpty();
 setMobileView("sidebar");
 // The Formatting toggle only drives the touch sticky bar; on desktop the
-// floating-on-selection bar is used instead, so hide the toggle there.
-if (!isTouch) formatToggleBtn.style.display = "none";
+// floating-on-selection bar is used instead, so hide the header toggle AND its
+// Settings row there (they'd be no-ops).
+if (!isTouch) {
+  formatToggleBtn.style.display = "none";
+  $("settings-formatbar-row").style.display = "none";
+}
 applyFormatBar();
 loadAll();
