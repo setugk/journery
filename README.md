@@ -89,23 +89,7 @@ Everything is a single SQLite file inside the volume you mounted (`~/journery-da
 -v journery-data:/data          # a managed Docker volume
 ```
 
-Back it up by copying that folder. Nothing ever leaves your machine.
-
-### Keep a live Markdown copy (optional)
-
-Don't want your notes trapped in a database at all? Point `MARKDOWN_MIRROR` at a mounted folder and Journery keeps a plain **`.md` file for every note** there — one file per note, in subfolders that match your folders — **updated on every change**, no export step:
-
-```bash
-docker run -d -p 5050:5000 \
-  -v ~/journery-data:/data \
-  -v ~/journery-vault:/mirror \
-  -e MARKDOWN_MIRROR=/mirror \
-  ghcr.io/setugk/journery
-```
-
-Now `~/journery-vault` always holds your notes as ordinary Markdown files — open them in Obsidian, point Syncthing or iCloud at the folder, grep them, whatever. Each file carries the title, dates, and tags as YAML front matter. If Journery ever disappears, your notes are already sitting there in the open.
-
-It's **one-way** (Journery → files): a live, always-current copy, not a second place to edit — changes you make to the `.md` files won't sync back. Journery **owns** this folder (it removes files for notes you delete), so give it a dedicated one. When it's active, Settings → Data shows "Live Markdown mirror: On."
+Back it up by copying that folder. Nothing ever leaves your machine. And any time you want your notes as portable files, **Settings → Data → Export as Markdown** gives you a `.zip` of `.md` files (one per note, folders preserved, with YAML front matter) — open them in Obsidian, Bear, or any editor.
 
 ### Add a password (optional)
 

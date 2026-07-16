@@ -335,10 +335,6 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
-  { version: "1.21", date: "July 2026", changes: [
-    "Live Markdown mirror — keep every note as a plain .md file in a folder you control, updated automatically (opt-in)",
-    "Bug fixes & improvements",
-  ]},
   { version: "1.20", date: "July 2026", changes: [
     "Export your notes as Markdown files — take them anywhere, no lock-in",
     "Larger, clearer note titles",

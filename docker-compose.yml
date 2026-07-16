@@ -10,13 +10,7 @@ services:
     volumes:
       - ./data:/data       # YOUR DATA lives here. Point the left side anywhere:
                            #   /mnt/nas/journery:/data, a named volume, etc.
-      # Optional live Markdown mirror: a plain .md copy of every note, kept in
-      # sync on every change, in a folder YOU control (open in Obsidian, point
-      # Syncthing/iCloud at it…). Journery owns this folder — use a dedicated one.
-      # - ./markdown:/mirror
     # environment:
     #   # Optional: require a login. Leave both unset to run with no password.
     #   - JOURNERY_USER=me
     #   - JOURNERY_PASS=change-this
-    #   # Optional: enable the live Markdown mirror (must match the mount above).
-    #   - MARKDOWN_MIRROR=/mirror

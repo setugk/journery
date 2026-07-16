@@ -1111,7 +1111,6 @@ body {
   font-size: var(--fs-16);
   color: var(--text-muted);
 }
-.settings-row-value.mirror-on { color: #10b981; font-weight: 600; }
 
 /* Toggle switch */
 .toggle-switch {

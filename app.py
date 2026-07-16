@@ -4,7 +4,6 @@ import re
 import time
 import json
 import zipfile
-import threading
 from html.parser import HTMLParser
 from functools import wraps
 from flask import Flask, request, jsonify, render_template, Response
@@ -22,11 +21,8 @@ JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # Demo mode: the browser stores all data locally (see static/demo.js); the server
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
-# Live Markdown mirror: if set to a folder, keep a plain-.md copy of every note
-# there, updated on every change (Obsidian/Syncthing/iCloud-friendly). Off unless set.
-MIRROR_DIR      = os.path.expanduser(os.environ.get("MARKDOWN_MIRROR", "").strip())
 STATIC_VERSION  = str(int(time.time()))
-APP_VERSION     = "1.21.1"
+APP_VERSION     = "1.21.2"
 
 
 def requires_auth(f):
@@ -46,7 +42,7 @@ def requires_auth(f):
 @app.route("/")
 @requires_auth
 def index():
-    return render_template("index.html", journery_name=JOURNERY_NAME, static_v=STATIC_VERSION, app_version=APP_VERSION, demo_mode=DEMO_MODE, markdown_mirror=bool(MIRROR_DIR))
+    return render_template("index.html", journery_name=JOURNERY_NAME, static_v=STATIC_VERSION, app_version=APP_VERSION, demo_mode=DEMO_MODE)
 
 
 # ── Folders ───────────────────────────────────────────────────────────────────
@@ -397,8 +393,7 @@ def _folder_relpath(folders, fid):
 
 
 def _note_files(data):
-    """Map every note to a unique '<folder>/<title>.md' path → file content.
-    Shared by the Markdown export (zip) and the live mirror."""
+    """Map every note to a unique '<folder>/<title>.md' path → file content."""
     folders = {f["id"]: f for f in data["folders"]}
     files, used = {}, set()
     for n in data["notes"]:
@@ -429,98 +424,6 @@ def export_markdown():
         mimetype="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-
-# ── Live Markdown mirror ──────────────────────────────────────────────────────
-# When MARKDOWN_MIRROR points at a folder, keep a plain-.md copy of every note
-# there, refreshed on every change — so notes are always readable outside
-# Journery (Obsidian/Syncthing/iCloud) with no export step. Declarative: the
-# mirror is rebuilt to match the DB, writing only files whose content changed
-# (so a single edit touches a single file, not the whole vault) and removing
-# .md files / empty dirs that no longer map to a note. Journery OWNS this folder
-# — point it at a dedicated one. One-way (DB → files); external edits don't sync
-# back. The reconcile runs debounced on a background thread, off the request path.
-
-_mirror_timer = None
-_mirror_schedule_lock = threading.Lock()
-_mirror_run_lock = threading.Lock()
-
-
-def _read_text(path):
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return f.read()
-    except OSError:
-        return None
-
-
-def reconcile_mirror():
-    if not MIRROR_DIR:
-        return
-    files = _note_files(db.export_all())
-    os.makedirs(MIRROR_DIR, exist_ok=True)
-    wanted = set()
-    for rel, content in files.items():
-        full = os.path.join(MIRROR_DIR, rel)
-        wanted.add(os.path.normpath(full))
-        os.makedirs(os.path.dirname(full), exist_ok=True)
-        if _read_text(full) != content:           # only rewrite on real change
-            with open(full, "w", encoding="utf-8") as f:
-                f.write(content)
-    # Remove orphan .md files (deletes/renames/moves); leave any non-.md files
-    # the user dropped in untouched. Then prune the empty dirs left behind.
-    for root, _dirs, fnames in os.walk(MIRROR_DIR):
-        for fn in fnames:
-            if fn.endswith(".md"):
-                p = os.path.normpath(os.path.join(root, fn))
-                if p not in wanted:
-                    try:
-                        os.remove(p)
-                    except OSError:
-                        pass
-    for root, _dirs, _fnames in os.walk(MIRROR_DIR, topdown=False):
-        if os.path.normpath(root) == os.path.normpath(MIRROR_DIR):
-            continue
-        try:
-            if not os.listdir(root):
-                os.rmdir(root)
-        except OSError:
-            pass
-
-
-def _run_mirror():
-    with _mirror_run_lock:
-        try:
-            reconcile_mirror()
-        except Exception as e:                     # never let mirroring break the app
-            app.logger.warning("markdown mirror reconcile failed: %s", e)
-
-
-def touch_mirror(delay=3.0):
-    """Debounced background reconcile — coalesces bursts of autosaves into one pass."""
-    if not MIRROR_DIR:
-        return
-    global _mirror_timer
-    with _mirror_schedule_lock:
-        if _mirror_timer:
-            _mirror_timer.cancel()
-        _mirror_timer = threading.Timer(delay, _run_mirror)
-        _mirror_timer.daemon = True
-        _mirror_timer.start()
-
-
-@app.after_request
-def _mirror_after_request(resp):
-    if (MIRROR_DIR and resp.status_code < 400
-            and request.method in ("POST", "PUT", "DELETE")
-            and request.path.startswith("/api/")):
-        touch_mirror()
-    return resp
-
-
-if MIRROR_DIR:
-    # Populate / reconcile once at startup, in the background.
-    threading.Thread(target=_run_mirror, daemon=True).start()
 
 
 # ── Sync polling ──────────────────────────────────────────────────────────────
