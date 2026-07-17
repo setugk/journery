@@ -340,6 +340,7 @@ const CHANGELOG = [
     "Search as you type — results appear right under the search bar, no separate page",
     "Notes save faster after you stop typing, and save right away when you leave the app",
     "A note you have open now updates live when you edit it on another device",
+    "Markdown list shortcuts (“* ”, “- ”, “1. ”) now work on any line — including pasted or imported notes, not just freshly typed ones",
     "Bug fixes & improvements",
   ]},
   { version: "1.26", date: "July 2026", changes: [
@@ -1805,6 +1806,29 @@ function mdBlockText(block) {
   return block === noteBody ? (noteBody.textContent || '') : (block.textContent || '');
 }
 
+// Text on the CURRENT VISUAL LINE, from its start to the caret. The line starts
+// at the nearest preceding <br> (or the block start if none). Needed because a
+// note's lines aren't always their own block: pasted/imported content puts
+// several lines inside one block joined by <br>, and reading from the block
+// start would prepend the earlier lines' text — so "* " on line 3 came out as
+// "line1line2*" and the marker check never matched. Note: Range.toString() drops
+// <br> entirely (no "\n"), so we must walk the nodes and reset at each <br>.
+function mdLineBeforeCaret(block, range) {
+  const pre = document.createRange();
+  pre.selectNodeContents(block);
+  try { pre.setEnd(range.startContainer, range.startOffset); } catch (_) { return null; }
+  const frag = pre.cloneContents();
+  let line = '';
+  (function walk(node) {
+    for (const child of node.childNodes) {
+      if (child.nodeName === 'BR') line = '';
+      else if (child.nodeType === Node.TEXT_NODE) line += child.textContent;
+      else walk(child);
+    }
+  })(frag);
+  return line;
+}
+
 function mdInsertDivider(block) {
   const hr   = document.createElement('hr');
   const next = document.createElement('div');
@@ -1868,6 +1892,13 @@ function mdMakeList(markerLen, tag) {
   // block first so the list command has a real line to convert.
   if (mdActiveBlock() === noteBody) document.execCommand('formatBlock', false, 'div');
   document.execCommand(tag === 'ol' ? 'insertOrderedList' : 'insertUnorderedList');
+  // Converting a <br>-joined line leaves that line's old <br> separator stranded
+  // as a blank line right before the new list — drop it so the result is clean.
+  const li   = currentLi();
+  const list = li && li.closest('ul,ol');
+  if (list && list.previousSibling && list.previousSibling.nodeName === 'BR') {
+    list.previousSibling.remove();
+  }
   updateNoteBodyPlaceholder();
   scheduleSave();
 }
@@ -1881,17 +1912,16 @@ noteBody.addEventListener('beforeinput', e => {
   if (!block) return;
 
   if (char === ' ') {
-    // Look at the text from the START OF THE LINE to the caret — so a marker
-    // typed in FRONT of existing text triggers the list too, not only an empty
-    // line. (The old check compared the whole trimmed block, so "* existing
-    // line" never matched.)
+    // Look at the text on the current VISUAL LINE up to the caret — so a marker
+    // typed in FRONT of existing text triggers the list, AND it works whether the
+    // line is its own <div> or a <br>-joined line inside a shared block (pasted /
+    // imported notes). The old check read from the block start, which broke on
+    // any line below the first in a <br>-joined block.
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount) return;
     const range = sel.getRangeAt(0);
-    const pre = range.cloneRange();
-    pre.selectNodeContents(block);
-    try { pre.setEnd(range.startContainer, range.startOffset); } catch (_) { return; }
-    const before = pre.toString();
+    const before = mdLineBeforeCaret(block, range);
+    if (before == null) return;
     if (before === '*' || before === '-') { e.preventDefault(); mdMakeList(1, 'ul'); return; }
     if (/^\d+\.$/.test(before))            { e.preventDefault(); mdMakeList(before.length, 'ol'); return; }
     return;

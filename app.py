@@ -25,7 +25,7 @@ JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # Demo mode: the browser stores all data locally (see static/demo.js); the server
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
-APP_VERSION     = "1.27.4"
+APP_VERSION     = "1.27.5"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
