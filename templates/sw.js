@@ -10,7 +10,8 @@ const SHELL = [
   '/manifest.json',
   '/static/style.css?v={{ static_v }}',
   '/static/app.js?v={{ static_v }}',
-  '/static/demo.js?v={{ static_v }}',
+  // demo.js is loaded via the HTML <script> tag and runtime-cached on first
+  // fetch, so it's not precached here (it's inert on non-demo instances anyway).
 ];
 
 self.addEventListener('install', (e) => {

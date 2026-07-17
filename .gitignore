@@ -27,14 +27,9 @@ docker-compose-agrams.yml
 
 capture_screenshots.py
 
-# One-time personal data-migration scripts (Notion/Evernote/Bear imports)
-import_notion.py
-import_txt.py
-sync_notion.py
-archive_bear_notes.py
-fix_evernote_dates.py
-fix_evernote_dates_ambiguous.py
-reorganize_journal.py
+# One-time personal data-migration scripts (Notion/Evernote/Bear imports),
+# archived out of the working tree — kept for provenance, never shipped.
+archive/
 
 # Local native-run artifacts
 __pycache__/

@@ -339,6 +339,7 @@ const CHANGELOG = [
   { version: "1.27", date: "July 2026", changes: [
     "Search as you type — results appear right under the search bar, no separate page",
     "Notes save faster after you stop typing, and save right away when you leave the app",
+    "A note you have open now updates live when you edit it on another device",
     "Bug fixes & improvements",
   ]},
   { version: "1.26", date: "July 2026", changes: [
@@ -3269,7 +3270,7 @@ async function deleteFolder(folder) {
 
 // ── Sync polling ──────────────────────────────────────────────────────────────
 
-setInterval(async () => {
+async function syncCheck() {
   try {
     const { version } = await api("GET", "/api/sync");
     if (version && version !== state.syncVersion) {
@@ -3285,10 +3286,47 @@ setInterval(async () => {
         all.forEach(n => { const y = new Date(n.created_at).getFullYear(); yearCounts[y] = (yearCounts[y] || 0) + 1; });
         state.noteYears = Object.entries(yearCounts).sort((a,b) => b[0]-a[0]).map(([year,count]) => ({ year: parseInt(year), count }));
         renderTimeline();
+        await refreshOpenNoteFromServer();
       }
     }
   } catch(_) {}
-}, 2000);
+}
+
+// The poll above reloads the notes *list*; this also refreshes the note you have
+// *open in the editor* when it changed on another device — otherwise the list
+// preview updates but the note you're reading stays stale until a manual reload.
+// Guarded by !state.dirty, so it never overwrites unsaved local edits: if you're
+// mid-edit the reload is skipped entirely (your version wins, last-write on save).
+// We don't skip on focus — on desktop the editor is focused just from opening a
+// note, so that would defeat the whole thing; the !dirty guard is what keeps it
+// safe. Scroll position is preserved so a long note doesn't jump.
+async function refreshOpenNoteFromServer() {
+  const cur = state.note;
+  if (!cur || !cur.id || state.dirty || state.saving) return;
+  let fresh;
+  try { fresh = await api("GET", `/api/notes/${cur.id}`); } catch { return; }
+  // Re-check after the await — the user may have switched notes or started editing.
+  if (!fresh || !state.note || state.note.id !== cur.id || state.dirty || state.saving) return;
+  if (fresh.updated_at === cur.updated_at) return;   // unchanged remotely
+  const scrollTop = editorBody ? editorBody.scrollTop : 0;
+  state.note = fresh;
+  noteTitle.value = fresh.title || "";
+  noteBody.innerHTML = bodyToHtml(fresh.body || "");
+  decorateLinks();
+  renderTagChips(fresh.tags || []);
+  renderNoteDates(fresh);
+  updateNoteBodyPlaceholder();
+  autosizeTitle();
+  if (editorBody) editorBody.scrollTop = scrollTop;
+  showToast("Updated from another device");
+}
+
+setInterval(syncCheck, 2000);
+// Returning to a backgrounded tab: browsers throttle setInterval while hidden,
+// so sync right away on refocus instead of waiting out the throttled interval.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncCheck();
+});
 
 // ── Resize handles ────────────────────────────────────────────────────────────
 

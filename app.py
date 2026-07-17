@@ -1,7 +1,7 @@
 import os
 import io
 import re
-import time
+import hmac
 import json
 import zipfile
 from html.parser import HTMLParser
@@ -10,27 +10,36 @@ from flask import Flask, request, jsonify, render_template, Response
 import db
 
 app = Flask(__name__)
+# Cap request bodies at 32MB — guards against unbounded uploads while staying
+# well above the largest realistic payload (a full /api/import restore of the
+# note corpus).
+app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
 db.init_db()
 
 # Optional basic auth. Set JOURNERY_USER + JOURNERY_PASS to require a login;
 # leave unset to run open (e.g. behind Cloudflare Access). CLIPPERY_* still work
-# as legacy fallbacks.
-CLIPPERY_USER   = os.environ.get("JOURNERY_USER") or os.environ.get("CLIPPERY_USER")
-CLIPPERY_PASS   = os.environ.get("JOURNERY_PASS") or os.environ.get("CLIPPERY_PASS")
+# as legacy env fallbacks.
+AUTH_USER       = os.environ.get("JOURNERY_USER") or os.environ.get("CLIPPERY_USER")
+AUTH_PASS       = os.environ.get("JOURNERY_PASS") or os.environ.get("CLIPPERY_PASS")
 JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # Demo mode: the browser stores all data locally (see static/demo.js); the server
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
-STATIC_VERSION  = str(int(time.time()))
-APP_VERSION     = "1.27.1"
+APP_VERSION     = "1.27.3"
+# Tie asset cache-busting to the app version, so caches invalidate only when we
+# actually ship — not on every container restart (which str(time.time()) did).
+STATIC_VERSION  = APP_VERSION
 
 
 def requires_auth(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if CLIPPERY_USER and CLIPPERY_PASS:
+        if AUTH_USER and AUTH_PASS:
             auth = request.authorization
-            if not auth or auth.username != CLIPPERY_USER or auth.password != CLIPPERY_PASS:
+            ok = (auth
+                  and hmac.compare_digest(auth.username or "", AUTH_USER)
+                  and hmac.compare_digest(auth.password or "", AUTH_PASS))
+            if not ok:
                 return Response(
                     "Authentication required.", 401,
                     {"WWW-Authenticate": 'Basic realm="Journery"'}
@@ -481,5 +490,5 @@ def manifest():
 
 
 if __name__ == "__main__":
-    db.init_db()
+    # init_db() already ran at import time (module level above).
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))

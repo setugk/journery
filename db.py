@@ -17,7 +17,7 @@ def get_conn():
     return conn
 
 
-_SCHEMA_VERSION = 2
+_SCHEMA_VERSION = 3
 
 
 def init_db():
@@ -462,6 +462,9 @@ def import_data(data, mode="merge"):
                         tag_ids[tag_name] = tid
                     conn.execute("INSERT OR IGNORE INTO note_tags VALUES (?,?)", (n["id"], tid))
     finally:
+        # The pragma is per-connection and every get_conn() re-enables it, so this
+        # is belt-and-suspenders — restore enforcement before handing the conn back.
+        conn.execute("PRAGMA foreign_keys = ON")
         conn.close()
     return {"mode": mode, "folders_imported": folders_in, "notes_imported": notes_in}
 
