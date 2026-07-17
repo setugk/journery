@@ -18,8 +18,8 @@ html { height: -webkit-fill-available; }
   --danger-bg: #FFF1F2;
   --link: #2563EB;
   --radius: 10px;
-  --sidebar-w: 272px;
-  --notes-w: 272px;
+  --sidebar-w: 292px;
+  --notes-w: 292px;
 
   /* Font-size scale — every literal font-size in this file should
      reference one of these instead of a bare px value, so a size can be

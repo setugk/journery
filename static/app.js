@@ -338,6 +338,7 @@ const SETTINGS_SECTION_LABELS = {
 const CHANGELOG = [
   { version: "1.27", date: "July 2026", changes: [
     "Search as you type — results appear right under the search bar, no separate page",
+    "Notes save faster after you stop typing, and save right away when you leave the app",
     "Bug fixes & improvements",
   ]},
   { version: "1.26", date: "July 2026", changes: [
@@ -1710,6 +1711,11 @@ function updateNoteBodyPlaceholder() {
 // ── Auto-save ─────────────────────────────────────────────────────────────────
 
 let saveTimer;
+// Debounce after the last keystroke before autosaving. Short enough to feel
+// near-instant; still batches a burst of typing into one write. SQLite writes
+// are cheap for a single user, so the extra requests from a shorter window are
+// a non-issue. (Was 2000ms.)
+const SAVE_DEBOUNCE_MS = 700;
 
 function setAutosave(msg) { autosaveEl.textContent = msg; }
 
@@ -1718,7 +1724,7 @@ function scheduleSave() {
   state.dirty = true;
   setAutosave("Editing…");
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveNoteNow, 2000);
+  saveTimer = setTimeout(saveNoteNow, SAVE_DEBOUNCE_MS);
 }
 
 async function saveNoteNow() {
@@ -3286,8 +3292,8 @@ setInterval(async () => {
 
 // ── Resize handles ────────────────────────────────────────────────────────────
 
-const SIDEBAR_MIN = 272, SIDEBAR_MAX = 380;
-const NOTES_MIN   = 272, NOTES_MAX   = 500;
+const SIDEBAR_MIN = 292, SIDEBAR_MAX = 380;
+const NOTES_MIN   = 292, NOTES_MAX   = 500;
 // Clamp up front so any previously-stored width below the current minimum snaps to it.
 let sidebarW = Math.max(SIDEBAR_MIN, parseInt(localStorage.getItem("sidebarW") || String(SIDEBAR_MIN)));
 let notesW   = Math.max(NOTES_MIN,   parseInt(localStorage.getItem("notesW")   || String(NOTES_MIN)));
@@ -3340,6 +3346,17 @@ window.addEventListener("beforeunload", e => {
     e.returnValue = "";
   }
 });
+
+// Flush a pending edit the moment the app is backgrounded or closed, instead of
+// waiting out the debounce timer — which may never fire if the OS freezes/kills
+// the page (very common on mobile when you switch apps). visibilitychange→hidden
+// is the reliable signal here (pagehide as a belt-and-suspenders for real
+// navigations); the page usually stays alive long enough for the write.
+function flushPendingSave() { if (state.dirty && !state.saving) saveNoteNow(); }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") flushPendingSave();
+});
+window.addEventListener("pagehide", flushPendingSave);
 
 // ── Visual-viewport sync ──────────────────────────────────────────────────────
 // Size the app shell to the space *above* the on-screen keyboard. When the
