@@ -6,7 +6,7 @@ const state = {
   notes: [],
   noteYears: [],        // [{ year, count }, …] sorted desc
   note: null,
-  context: { type: "all", id: null, label: "All Notes" },
+  context: { type: "recents", id: null, label: "Recents" },   // Recents is the default view on load
   searchQuery: "",
   paneSearchQuery: "",
   sortBy: localStorage.getItem("sortBy") || "created_desc",
@@ -336,6 +336,16 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.27", date: "July 2026", changes: [
+    "Search as you type — results appear right under the search bar, no separate page",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.26", date: "July 2026", changes: [
+    "The formatting bar now highlights the styles active where your cursor is (bold, heading, list, etc.)",
+    "Recents is now the default view when you open the app",
+    "Refreshed logo",
+    "Bug fixes & improvements",
+  ]},
   { version: "1.25", date: "July 2026", changes: [
     "New Journery logo — in the app, on the tab favicon, and as the home-screen / PWA icon",
     "Create a subfolder right from the Move-to-folder dialog — expand any folder to add one",
@@ -788,7 +798,9 @@ $("editor-back-btn").addEventListener("click", async () => {
   state.note = null;
   state.dirty = false;
   clearTimeout(saveTimer);
-  setMobileView("notes");
+  // A note opened from search lives in the sidebar's results, not the notes
+  // pane — so back should return there, keeping the query and results intact.
+  setMobileView(searchActive ? "sidebar" : "notes");
   renderNotesList();
   showEditorEmpty();
 });
@@ -821,44 +833,90 @@ appEl.addEventListener("touchend", e => {
   }
 }, { passive: true });
 
-// ── Search (runs on Enter; clear button resets) ────────────────────────────────
+// ── Search: live results shown under the search bar, inside the sidebar ─────────
+// As you type, the nav is replaced by a results list in the same (root) view —
+// no separate page, on desktop or mobile. Clearing the box restores the nav.
+const searchResultsBox = $("search-results");
+const sidebarNav = $("sidebar-nav");
+let searchActive = false;
+let searchSeq = 0;            // guards against out-of-order async responses
+let searchDebounce = null;
+let searchResultsData = [];
 
 function updateSearchClear() {
   $("search-clear").classList.toggle("hidden", !searchInput.value);
 }
 
-function runSearch() {
-  const q = searchInput.value.trim();
-  state.searchQuery = q;
-  if (!q) { clearSearch(); return; }
-  state.context = { type: "search", id: null, label: "Search" };
-  setActiveNav(null);
-  renderSidebar();
-  setMobileView("notes");
-  notesList.scrollTop = 0;
-  loadNotes().then(() => {
-    const n = state.notes.length;
-    paneTitle.textContent = `${n} result${n === 1 ? "" : "s"}`;
+function setSearchMode(on) {
+  searchActive = on;
+  sidebarNav.classList.toggle("hidden", on);
+  searchResultsBox.classList.toggle("hidden", !on);
+}
+
+// Leave search mode and return to the default sidebar view.
+function exitSearch() {
+  clearTimeout(searchDebounce);
+  searchSeq++;                // cancel any in-flight query
+  searchInput.value = "";
+  state.searchQuery = "";
+  searchResultsData = [];
+  searchResultsBox.innerHTML = "";
+  updateSearchClear();
+  setSearchMode(false);
+}
+
+function renderSearchResults(notes, q) {
+  searchResultsData = notes;
+  if (!notes.length) {
+    searchResultsBox.innerHTML = `<div class="search-empty">No results for &ldquo;${esc(q)}&rdquo;</div>`;
+    return;
+  }
+  searchResultsBox.innerHTML = notes.map(n => {
+    const preview = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 70);
+    return `<button class="search-result-item" type="button" data-note-id="${n.id}">
+      <div class="search-result-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
+      ${preview ? `<div class="search-result-preview">${esc(preview)}</div>` : ""}
+    </button>`;
+  }).join("");
+  searchResultsBox.querySelectorAll(".search-result-item").forEach(el => {
+    el.addEventListener("click", () => openSearchResult(el.dataset.noteId));
   });
 }
 
-function clearSearch() {
-  searchInput.value = "";
-  state.searchQuery = "";
-  updateSearchClear();
-  state.context = { type: "all", id: null, label: "All Notes" };
-  paneTitle.textContent = "All Notes";
-  setActiveNav(navAllNotes);
-  renderSidebar();
-  loadNotes();
-  notesList.scrollTop = 0;
+function openSearchResult(id) {
+  const n = searchResultsData.find(x => x.id === id);
+  if (n) openNote(n);   // opens in the editor (mobile navigates there; back returns to the sidebar search)
 }
 
-searchInput.addEventListener("input", updateSearchClear);
-searchInput.addEventListener("keydown", e => {
-  if (e.key === "Enter") { e.preventDefault(); runSearch(); }
+async function runLiveSearch() {
+  const q = searchInput.value.trim();
+  state.searchQuery = q;
+  if (!q) { exitSearch(); return; }
+  setSearchMode(true);
+  const seq = ++searchSeq;
+  try {
+    const notes = await api("GET", `/api/notes?q=${encodeURIComponent(q)}`);
+    if (seq !== searchSeq) return;   // a newer keystroke superseded this response
+    renderSearchResults(notes, q);
+  } catch {
+    if (seq === searchSeq) searchResultsBox.innerHTML = `<div class="search-empty">Search failed</div>`;
+  }
+}
+
+searchInput.addEventListener("input", () => {
+  updateSearchClear();
+  clearTimeout(searchDebounce);
+  const q = searchInput.value.trim();
+  if (!q) { exitSearch(); return; }      // removing the text returns to the default view immediately
+  setSearchMode(true);                    // show the panel right away; results fill in after the debounce
+  if (!searchResultsBox.innerHTML) searchResultsBox.innerHTML = `<div class="search-empty">Searching…</div>`;
+  searchDebounce = setTimeout(runLiveSearch, 160);
 });
-$("search-clear").addEventListener("click", () => { clearSearch(); searchInput.focus(); });
+searchInput.addEventListener("keydown", e => {
+  if (e.key === "Enter")  { e.preventDefault(); clearTimeout(searchDebounce); runLiveSearch(); }
+  if (e.key === "Escape") { e.preventDefault(); exitSearch(); searchInput.blur(); }
+});
+$("search-clear").addEventListener("click", () => { exitSearch(); searchInput.focus(); });
 
 // ── Folder tree ───────────────────────────────────────────────────────────────
 
@@ -2079,6 +2137,39 @@ function selectionInEditor() {
     noteBody.contains(sel.getRangeAt(0).commonAncestorContainer);
 }
 
+// Highlight the formats active at the caret/selection in both bars, so it's
+// clear what's on (bold shows a filled button, etc.). Works with a collapsed
+// caret too — the mobile bar is always visible, not just during a selection.
+function cmdState(c) { try { return document.queryCommandState(c); } catch { return false; } }
+function updateActiveFormats() {
+  const sel = window.getSelection();
+  const anchor = sel && sel.anchorNode;
+  const active = new Set();
+  if (anchor && noteBody.contains(anchor)) {
+    if (cmdState("bold"))          active.add("bold");
+    if (cmdState("italic"))        active.add("italic");
+    if (cmdState("underline"))     active.add("underline");
+    if (cmdState("strikeThrough")) active.add("strike");
+    const inUL = cmdState("insertUnorderedList");
+    const inOL = cmdState("insertOrderedList");
+    let el = anchor.nodeType === 3 ? anchor.parentElement : anchor;
+    if (el && !noteBody.contains(el)) el = null;
+    if (el && el.closest("ul.task-list")) active.add("checklist");  // a task-list is a <ul>, so check it before bullet
+    else if (inUL)                        active.add("bullet");
+    if (inOL)                             active.add("numbered");
+    if (el && el.closest("code, pre"))    active.add("code");
+    if (el && el.closest("a"))            active.add("link");
+    if (!inUL && !inOL) {
+      let block = ""; try { block = (document.queryCommandValue("formatBlock") || "").toLowerCase(); } catch {}
+      if (block === "h1" || block === "h2" || block === "h3") active.add(block);
+      else if (block === "blockquote")                        active.add("quote");
+      // plain body (div/p) is intentionally not highlighted — it's the default, the absence of a block style
+    }
+  }
+  document.querySelectorAll("#format-bar [data-fmt], #sticky-format-bar [data-fmt]")
+    .forEach(btn => btn.classList.toggle("active", active.has(btn.dataset.fmt)));
+}
+
 // On touch devices iOS draws its own Cut/Copy/Paste callout right over a
 // selection, so floating our own bar there just stacks two menus on top
 // of each other. Several attempts at a bar/FAB tied to the keyboard's
@@ -2245,6 +2336,7 @@ function showFormatBar() {
   formatBar.style.top  = Math.max(8, top) + "px";
   formatBar.style.setProperty("--arrow-x", arrowX + "px");
   formatBar.classList.toggle("below", below);
+  updateActiveFormats();
 }
 
 noteBody.addEventListener("mouseup",  () => requestAnimationFrame(showFormatBar));
@@ -2259,6 +2351,7 @@ noteBody.addEventListener("blur", () => {
   setTimeout(() => { if (!formatBar.contains(document.activeElement)) hideFormatBar(); }, 180);
 });
 document.addEventListener("selectionchange", () => {
+  updateActiveFormats();   // keep the active-style highlight in sync as the caret/selection moves
   // Touch bar is focus-triggered, not selection-triggered. But the caret moving
   // (tapping a new spot, typing) can put it under the keyboard, and the locked
   // shell means nothing scrolls it back on its own — so keep it in view here.
@@ -2408,6 +2501,7 @@ function applyFormat(fmt) {
   // bar re-positions after each format, since it floats relative to the
   // selection.
   if (!isTouch) requestAnimationFrame(showFormatBar);
+  requestAnimationFrame(updateActiveFormats);   // refresh the active-style highlight
 }
 
 formatBar.addEventListener("mousedown", e => {
@@ -2894,26 +2988,36 @@ function openFolderMoveModal(node) {
 }
 
 function makeMoveFolderOption(folderId, name, isCurrent, depth = 0, hasKids = false, expanded = false) {
-  const btn = document.createElement("button");
-  btn.className = "move-folder-option" + (isCurrent ? " current" : "");
-  btn.style.paddingLeft = (8 + depth * 16) + "px";
-  const chev = hasKids
-    ? `<span class="move-folder-chev${expanded ? " open" : ""}" role="button" aria-label="Expand">${CHEV_SVG}</span>`
-    : `<span class="move-folder-chev-spacer"></span>`;
-  btn.innerHTML = `${chev}${FOLDER_SVG}<span class="move-folder-name">${esc(name)}</span>${isCurrent ? "<small>(current)</small>" : ""}`;
+  // Two separate buttons per row so "move here" and "expand" are distinct tap
+  // targets (the old single-row-with-tiny-chevron made them easy to confuse on
+  // touch — a near-miss on the chevron moved the note instead of expanding).
+  const row = document.createElement("div");
+  row.className = "move-folder-row" + (isCurrent ? " current" : "");
+
+  const select = document.createElement("button");
+  select.type = "button";
+  select.className = "move-folder-select";
+  select.style.paddingLeft = (8 + depth * 16) + "px";
+  select.innerHTML = `${FOLDER_SVG}<span class="move-folder-name">${esc(name)}</span>${isCurrent ? "<small>(current)</small>" : ""}`;
+  if (isCurrent) select.disabled = true;
+  else select.addEventListener("click", () => moveIntoFolder(folderId));
+  row.appendChild(select);
+
   if (hasKids) {
-    // Chevron toggles expansion without selecting the folder as the target.
-    btn.querySelector(".move-folder-chev").addEventListener("click", e => {
-      e.stopPropagation();
+    const exp = document.createElement("button");
+    exp.type = "button";
+    exp.className = "move-folder-expand" + (expanded ? " open" : "");
+    exp.setAttribute("aria-label", expanded ? "Hide subfolders" : "Show subfolders");
+    exp.setAttribute("aria-expanded", expanded ? "true" : "false");
+    exp.innerHTML = CHEV_SVG;
+    exp.addEventListener("click", () => {
       if (moveExpanded.has(folderId)) moveExpanded.delete(folderId);
       else moveExpanded.add(folderId);
       renderMoveFolderList();
     });
+    row.appendChild(exp);
   }
-  if (!isCurrent) {
-    btn.addEventListener("click", () => moveIntoFolder(folderId));
-  }
-  return btn;
+  return row;
 }
 
 // Perform the move into `folderId` (null = root) for whatever's being moved —
@@ -3309,5 +3413,9 @@ function updateOfflinePill() {
 window.addEventListener("online", updateOfflinePill);
 window.addEventListener("offline", updateOfflinePill);
 updateOfflinePill();
+
+// Default the notes panel to Recents on load (matches state.context above).
+paneTitle.textContent = recentsPaneTitle();
+setActiveNav(navRecents);
 
 loadAll();
