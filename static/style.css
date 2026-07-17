@@ -1424,7 +1424,7 @@ body {
   .app.focus-mode .note-title-input,
   .app.focus-mode .note-tags-row,
   .app.focus-mode .note-dates,
-  .app.focus-mode .note-body-input {
+  .app.focus-mode .note-body-wrap {
     max-width: 760px;
     margin-left: auto; margin-right: auto;
     width: 100%;
