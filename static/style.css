@@ -18,8 +18,8 @@ html { height: -webkit-fill-available; }
   --danger-bg: #FFF1F2;
   --link: #2563EB;
   --radius: 10px;
-  --sidebar-w: 220px;
-  --notes-w: 260px;
+  --sidebar-w: 272px;
+  --notes-w: 272px;
 
   /* Font-size scale — every literal font-size in this file should
      reference one of these instead of a bare px value, so a size can be
@@ -120,14 +120,19 @@ body {
 }
 
 .sidebar-header {
-  height: 52px;
-  padding: 0 12px 0 16px;
+  min-height: 52px;
+  padding: 7px 12px 7px 16px;
   display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; row-gap: 4px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--divider);
 }
-.app-title { font-size: var(--fs-14); font-weight: 700; letter-spacing: -0.03em; }
-.sidebar-header-actions { display: flex; gap: 2px; }
+/* Keep the title on one line and let the action row wrap under it when the
+   fixed-width sidebar can't fit both — the title shrinking to wrap its own
+   text (dropping BETA below "Journery") was the old, clipped behavior. */
+.app-title { font-size: var(--fs-14); font-weight: 700; letter-spacing: -0.03em; white-space: nowrap; flex-shrink: 0; }
+.app-logo { width: 20px; height: 20px; border-radius: 5px; vertical-align: middle; margin-right: 7px; position: relative; top: -1px; user-select: none; }
+.sidebar-header-actions { display: flex; gap: 2px; flex-shrink: 0; }
 
 .sidebar-search {
   padding: 10px 10px 8px;
@@ -961,6 +966,11 @@ body {
 
 /* Inline "New folder" control at the top of the move picker */
 .move-folder-new { border-bottom: 1px solid var(--divider); margin-bottom: 4px; padding-bottom: 4px; }
+/* The "New subfolder…" rows under an expanded folder are just list rows, not the
+   top separator, so drop the divider/spacing the top-level control carries. */
+.move-folder-new.nested { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+.move-folder-new.nested .move-folder-newbtn { color: var(--text-muted); font-size: var(--fs-13); }
+.move-folder-new.nested .move-folder-newbtn:hover { color: var(--accent); }
 .move-folder-newbtn {
   display: flex; align-items: center; gap: 8px; width: 100%;
   padding: 9px 8px; background: none; border: none; border-radius: 8px;
@@ -1326,8 +1336,36 @@ body {
 
 /* ── Desktop overrides ───────────────────────────────────────────────── */
 
+/* Focus-mode buttons: both hidden by default (turned on for desktop below).
+   The enter button lives in the sidebar header; the reveal/exit button lives in
+   the editor toolbar and only appears in focus mode (when the sidebar — and its
+   enter button — are hidden). These come BEFORE the desktop media query so the
+   media query's `display: inline-flex` wins by source order on wide screens —
+   media queries add no specificity, so order is what decides. */
+.focus-toggle-btn,
+.focus-reveal-btn { display: none; }
+
 @media (min-width: 769px) {
   .notes-pane-search { display: none; }
+
+  /* ── Focus writing mode (desktop only) ─────────────────────────────── */
+  .focus-toggle-btn { display: inline-flex; }               /* enter (sidebar header) */
+  .app.focus-mode .focus-toggle-btn { display: none; }      /* sidebar's hidden anyway, but be explicit */
+  .app.focus-mode .focus-reveal-btn { display: inline-flex; } /* exit (editor toolbar) */
+
+  .app.focus-mode .sidebar,
+  .app.focus-mode .notes-pane { display: none; }
+
+  /* With the side panes gone the editor fills the window — too wide to write
+     in comfortably — so center the text in a fixed writing column. */
+  .app.focus-mode .note-title-input,
+  .app.focus-mode .note-tags-row,
+  .app.focus-mode .note-dates,
+  .app.focus-mode .note-body-input {
+    max-width: 760px;
+    margin-left: auto; margin-right: auto;
+    width: 100%;
+  }
 }
 
 /* ── Mobile ──────────────────────────────────────────────────────────── */
@@ -1386,7 +1424,7 @@ body {
   .icon-btn { width: 44px; height: 44px; border-radius: 10px; }
   .icon-btn svg { width: 18px; height: 18px; }
 
-  .sidebar-header { height: 64px; padding: 0 10px 0 18px; }
+  .sidebar-header { min-height: 64px; padding: 0 10px 0 18px; }
   .app-title { font-size: var(--fs-18); }
   .notes-pane-header { height: 64px; padding: 0 6px; }
   .editor-toolbar { height: 64px; }

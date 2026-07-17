@@ -336,6 +336,15 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.25", date: "July 2026", changes: [
+    "New Journery logo — in the app, on the tab favicon, and as the home-screen / PWA icon",
+    "Create a subfolder right from the Move-to-folder dialog — expand any folder to add one",
+    "Bug fixes & improvements",
+  ]},
+  { version: "1.24", date: "July 2026", changes: [
+    "Focus mode on the web — hide both sidebars for distraction-free writing (⌘\\ or the toolbar button)",
+    "Bug fixes & improvements",
+  ]},
   { version: "1.23", date: "July 2026", changes: [
     "Turn an existing line into a list by typing “* ” or “1. ” in front of it",
     "Create a new folder right from the Move-to-folder dialog",
@@ -2109,6 +2118,28 @@ function toggleFormatBar() {
 formatToggleBtn.addEventListener("mousedown", e => { e.preventDefault(); toggleFormatBar(); });
 formatToggleBtn.addEventListener("touchstart", e => { e.preventDefault(); toggleFormatBar(); }, { passive: false });
 
+// ── Focus writing mode (desktop) ───────────────────────────────────────
+// Hides both left panes so the editor fills the window. Persisted across
+// sessions. All the focus CSS is gated to desktop, so the class is inert on
+// mobile (which is single-pane already) — no need to guard it here.
+let focusMode = localStorage.getItem("focusMode") === "true";
+
+function applyFocusMode() {
+  $("app").classList.toggle("focus-mode", focusMode);
+}
+function toggleFocusMode() {
+  focusMode = !focusMode;
+  localStorage.setItem("focusMode", focusMode);
+  applyFocusMode();
+}
+$("focus-toggle-btn").addEventListener("click", toggleFocusMode);  // enter (sidebar header)
+$("focus-reveal-btn").addEventListener("click", toggleFocusMode);  // exit (editor toolbar)
+applyFocusMode();
+
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === "\\") { e.preventDefault(); toggleFocusMode(); }
+});
+
 // The shell is sized to the space above the keyboard (see syncAppViewport), so
 // iOS no longer window-scrolls to reveal the caret — which also means it no
 // longer scrolls *anything* to reveal it. When the keyboard opens or the caret
@@ -2834,10 +2865,14 @@ function renderMoveFolderList() {
   const walk = (node, depth) => {
     if (cfg.excluded && cfg.excluded.has(node.id)) return;
     const kids = node.children.filter(c => !cfg.excluded || !cfg.excluded.has(c.id));
-    const hasKids = kids.length > 0;
     const expanded = moveExpanded.has(node.id);
-    list.appendChild(makeMoveFolderOption(node.id, node.name, cfg.isCurrent(node), depth, hasKids, expanded));
-    if (hasKids && expanded) kids.forEach(c => walk(c, depth + 1));
+    // Every folder is expandable (not just those with children) so the chevron
+    // also reveals a "New subfolder…" row — that's how you nest a folder here.
+    list.appendChild(makeMoveFolderOption(node.id, node.name, cfg.isCurrent(node), depth, true, expanded));
+    if (expanded) {
+      kids.forEach(c => walk(c, depth + 1));
+      list.appendChild(makeNewFolderControl(node.id, "New subfolder…", depth + 1));
+    }
   };
   buildTree(state.folders).forEach(n => walk(n, 0));
 }
@@ -2911,14 +2946,18 @@ async function moveIntoFolder(folderId) {
 }
 
 // Inline "New folder" row for the move picker: create a folder and move straight
-// into it, without closing the modal to make the folder separately.
-function makeNewFolderControl() {
+// into it, without closing the modal to make the folder separately. Reused for
+// both the top-level "New folder…" (parentId null) and the "New subfolder…" row
+// shown under each expanded folder (parentId = that folder), so you can build a
+// nested folder and move into it in one step.
+function makeNewFolderControl(parentId = null, label = "New folder…", depth = 0) {
   const wrap = document.createElement("div");
-  wrap.className = "move-folder-new";
+  wrap.className = "move-folder-new" + (depth > 0 ? " nested" : "");
+  if (depth > 0) wrap.style.paddingLeft = (depth * 16) + "px";
   wrap.innerHTML = `
     <button class="move-folder-newbtn" type="button">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span>New folder…</span>
+      <span>${esc(label)}</span>
     </button>
     <div class="move-folder-newform hidden">
       <input type="text" class="move-folder-newinput" placeholder="Folder name" autocomplete="off">
@@ -2938,7 +2977,7 @@ function makeNewFolderControl() {
     const name = input.value.trim();
     if (!name) { input.focus(); return; }
     createBtn.disabled = true;
-    const folder = await api("POST", "/api/folders", { name, parent_id: null });
+    const folder = await api("POST", "/api/folders", { name, parent_id: parentId });
     state.folders.push(folder);
     await moveIntoFolder(folder.id);   // create + move in one step
   };
@@ -3143,8 +3182,11 @@ setInterval(async () => {
 
 // ── Resize handles ────────────────────────────────────────────────────────────
 
-let sidebarW = parseInt(localStorage.getItem("sidebarW") || "220");
-let notesW   = parseInt(localStorage.getItem("notesW")   || "260");
+const SIDEBAR_MIN = 272, SIDEBAR_MAX = 380;
+const NOTES_MIN   = 272, NOTES_MAX   = 500;
+// Clamp up front so any previously-stored width below the current minimum snaps to it.
+let sidebarW = Math.max(SIDEBAR_MIN, parseInt(localStorage.getItem("sidebarW") || String(SIDEBAR_MIN)));
+let notesW   = Math.max(NOTES_MIN,   parseInt(localStorage.getItem("notesW")   || String(NOTES_MIN)));
 
 function applyPaneWidths() {
   document.documentElement.style.setProperty("--sidebar-w", sidebarW + "px");
@@ -3163,10 +3205,10 @@ function setupResizeHandle(handle, which) {
     function onMove(ev) {
       const delta = ev.clientX - startX;
       if (which === "sidebar") {
-        sidebarW = Math.max(160, Math.min(380, startW + delta));
+        sidebarW = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, startW + delta));
         localStorage.setItem("sidebarW", sidebarW);
       } else {
-        notesW = Math.max(180, Math.min(500, startW + delta));
+        notesW = Math.max(NOTES_MIN, Math.min(NOTES_MAX, startW + delta));
         localStorage.setItem("notesW", notesW);
       }
       applyPaneWidths();

@@ -22,7 +22,7 @@ JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 STATIC_VERSION  = str(int(time.time()))
-APP_VERSION     = "1.23.3"
+APP_VERSION     = "1.25.1"
 
 
 def requires_auth(f):
@@ -472,6 +472,11 @@ def manifest():
         "display": "standalone",
         "background_color": "#F5F5F5",
         "theme_color": "#111111",
+        "icons": [
+            {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+            {"src": "/static/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+        ],
     })
 
 
