@@ -336,6 +336,11 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.23", date: "July 2026", changes: [
+    "Turn an existing line into a list by typing “* ” or “1. ” in front of it",
+    "Create a new folder right from the Move-to-folder dialog",
+    "Bug fixes & improvements",
+  ]},
   { version: "1.22", date: "July 2026", changes: [
     "Works offline — opens and shows your latest notes without a connection (read-only for now)",
     "Bug fixes & improvements",
@@ -1759,6 +1764,38 @@ function mdInsertList(block, tag) {
   r.setStart(li, 0); r.collapse(true);
   const s = window.getSelection();
   if (s) { s.removeAllRanges(); s.addRange(r); }
+  updateNoteBodyPlaceholder();
+  scheduleSave();
+}
+
+// Convert the current line to a list when a markdown marker was just typed at
+// its start. Delete the marker from the caret's text node (deleteData keeps the
+// node even if it empties), then hand off to the browser's native list command
+// — the exact path the formatting bar uses, so it correctly handles existing
+// text on the line, the unwrapped first line, and continuation/backspace.
+function mdMakeList(markerLen, tag) {
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount) {
+    const r = sel.getRangeAt(0);
+    const node = r.startContainer;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const off  = r.startOffset;
+      const from = Math.max(0, off - markerLen);
+      node.deleteData(from, off - from);
+      sel.removeAllRanges();
+      const c = document.createRange();
+      c.setStart(node, Math.min(from, node.length)); c.collapse(true);
+      sel.addRange(c);
+    }
+  }
+  // The first line of a note is often a bare text node directly under the editor
+  // (not wrapped in a <div>). Native insertUnorderedList can't wrap a bare text
+  // node — it makes an empty bullet and orphans the text. Wrap the line in a
+  // block first so the list command has a real line to convert.
+  if (mdActiveBlock() === noteBody) document.execCommand('formatBlock', false, 'div');
+  document.execCommand(tag === 'ol' ? 'insertOrderedList' : 'insertUnorderedList');
+  updateNoteBodyPlaceholder();
+  scheduleSave();
 }
 
 // beforeinput fires BEFORE the character lands in the DOM.
@@ -1768,29 +1805,65 @@ noteBody.addEventListener('beforeinput', e => {
   const char  = e.data || '';
   const block = mdActiveBlock();
   if (!block) return;
-  const cur = mdBlockText(block).trim();
 
-  // Space after * or - → bullet list
-  if (char === ' ' && (cur === '*' || cur === '-')) {
-    e.preventDefault();
-    mdInsertList(block, 'ul');
+  if (char === ' ') {
+    // Look at the text from the START OF THE LINE to the caret — so a marker
+    // typed in FRONT of existing text triggers the list too, not only an empty
+    // line. (The old check compared the whole trimmed block, so "* existing
+    // line" never matched.)
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const pre = range.cloneRange();
+    pre.selectNodeContents(block);
+    try { pre.setEnd(range.startContainer, range.startOffset); } catch (_) { return; }
+    const before = pre.toString();
+    if (before === '*' || before === '-') { e.preventDefault(); mdMakeList(1, 'ul'); return; }
+    if (/^\d+\.$/.test(before))            { e.preventDefault(); mdMakeList(before.length, 'ol'); return; }
     return;
   }
-  // Space after "1." etc → numbered list
-  if (char === ' ' && /^\d+\.$/.test(cur)) {
-    e.preventDefault();
-    mdInsertList(block, 'ol');
-    return;
-  }
-  // Third dash → divider  (catches "--" + "-" and "–" + "-" after iOS autocorrect of first two)
-  if (char === '-' && (cur === '--' || cur === '–')) {
-    e.preventDefault();
-    mdInsertDivider(block);
+  // Third dash → divider (catches "--" + "-", and "–" + "-" after iOS autocorrect)
+  if (char === '-') {
+    const cur = mdBlockText(block).trim();
+    if (cur === '--' || cur === '–') { e.preventDefault(); mdInsertDivider(block); }
   }
 });
 
+// WebKit inserts a character typed at the very start of the first block OUTSIDE
+// that block — as a loose text node directly under the editor — which visually
+// splits the line ("*" on its own line, the text pushed below). Heal it: fold any
+// non-empty top-level bare text node into the adjacent block so the structure
+// stays all-blocks. Runs before the markdown checks so they see a clean line.
+function normalizeTopLevel() {
+  let hasStray = false;
+  for (let n = noteBody.firstChild; n; n = n.nextSibling) {
+    if (n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== "") { hasStray = true; break; }
+  }
+  if (!hasStray) return;
+  const sel = window.getSelection();
+  const saved = sel && sel.rangeCount
+    ? { c: sel.getRangeAt(0).startContainer, o: sel.getRangeAt(0).startOffset } : null;
+  let n = noteBody.firstChild;
+  while (n) {
+    const next = n.nextSibling;
+    if (n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== "") {
+      if (next && next.nodeName === "DIV") next.insertBefore(n, next.firstChild);  // node persists → caret ok
+      else { const div = document.createElement("div"); n.replaceWith(div); div.appendChild(n); }
+    }
+    n = next;
+  }
+  if (saved) {
+    try {
+      const r = document.createRange();
+      r.setStart(saved.c, saved.o); r.collapse(true);
+      sel.removeAllRanges(); sel.addRange(r);
+    } catch (_) {}
+  }
+}
+
 // input fallback: catches autocorrect-triggered replacements and non-beforeinput browsers
 noteBody.addEventListener("input", () => {
+  normalizeTopLevel();
   updateNoteBodyPlaceholder();
   const block = mdActiveBlock();
   if (block) {
@@ -1893,6 +1966,18 @@ function placeCaretIn(el) {
   sel.addRange(r);
 }
 
+// True when the caret sits at the very start of the note (nothing before it),
+// where native Backspace has no previous line to merge into.
+function caretAtStartOfNote() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+  const r = sel.getRangeAt(0);
+  const test = document.createRange();
+  test.selectNodeContents(noteBody);
+  try { test.setEnd(r.startContainer, r.startOffset); } catch (_) { return false; }
+  return test.toString() === '';
+}
+
 noteBody.addEventListener("keydown", e => {
   if (e.key === "Tab") {
     e.preventDefault();
@@ -1920,6 +2005,23 @@ noteBody.addEventListener("keydown", e => {
       document.execCommand('insertText', false, '  ');
     }
     return;
+  }
+
+  // Backspace at the very START of the note, inside a list item: native does
+  // nothing (no previous line to merge into), so the first bullet feels
+  // un-deletable. Convert it out of the list — outdentLi turns a top-level item
+  // back into a plain line. Only fires at note-start, so bullets elsewhere keep
+  // their normal native backspace/merge behavior.
+  if (e.key === "Backspace" && !e.shiftKey) {
+    const li = currentLi();
+    if (li && caretAtStartOfNote()) {
+      e.preventDefault();
+      const target = outdentLi(li);
+      if (target) placeCaretIn(target);
+      updateNoteBodyPlaceholder();
+      scheduleSave();
+      return;
+    }
   }
 
   // Enter on an EMPTY bullet steps out one nesting level (and off the list
@@ -2726,6 +2828,7 @@ function renderMoveFolderList() {
   const list = $("move-folder-list");
   const cfg  = moveFolderConfig();
   list.innerHTML = "";
+  list.appendChild(makeNewFolderControl());
   list.appendChild(makeMoveFolderOption(null, cfg.rootLabel, cfg.isCurrentRoot, 0, false, false));
 
   const walk = (node, depth) => {
@@ -2773,33 +2876,78 @@ function makeMoveFolderOption(folderId, name, isCurrent, depth = 0, hasKids = fa
     });
   }
   if (!isCurrent) {
-    btn.addEventListener("click", async () => {
-      $("move-modal").classList.add("hidden");
-      if (movingFolderNode) {
-        const node = movingFolderNode;
-        movingFolderNode = null;
-        const updated = await api("PUT", `/api/folders/${node.id}`, { parent_id: folderId });
-        const idx = state.folders.findIndex(f => f.id === updated.id);
-        if (idx !== -1) state.folders[idx] = updated;
-        const destName = folderId ? (state.folders.find(f => f.id === folderId)?.name || "folder") : "root";
-        renderFolderTree();
-        showToast(`"${node.name}" moved to "${destName}"`);
-      } else if (state.selectMode) {
-        await bulkMove(folderId);
-      } else {
-        const targetNote = contextMenuNote || state.note;
-        contextMenuNote = null;
-        if (!targetNote) return;
-        const updated = await api("PUT", `/api/notes/${targetNote.id}`, { folder_id: folderId });
-        if (state.note && state.note.id === updated.id) state.note = updated;
-        state.notes = state.notes.filter(n => n.id !== updated.id);
-        renderNotesList();
-        const destName = folderId ? (state.folders.find(f => f.id === folderId)?.name || "folder") : "root";
-        showToast(`Moved to "${destName}"`);
-      }
-    });
+    btn.addEventListener("click", () => moveIntoFolder(folderId));
   }
   return btn;
+}
+
+// Perform the move into `folderId` (null = root) for whatever's being moved —
+// a folder, a bulk selection, or a single note. Shared by the folder rows and
+// the inline "New folder" control (create-then-move).
+async function moveIntoFolder(folderId) {
+  $("move-modal").classList.add("hidden");
+  if (movingFolderNode) {
+    const node = movingFolderNode;
+    movingFolderNode = null;
+    const updated = await api("PUT", `/api/folders/${node.id}`, { parent_id: folderId });
+    const idx = state.folders.findIndex(f => f.id === updated.id);
+    if (idx !== -1) state.folders[idx] = updated;
+    const destName = folderId ? (state.folders.find(f => f.id === folderId)?.name || "folder") : "root";
+    renderFolderTree();
+    showToast(`"${node.name}" moved to "${destName}"`);
+  } else if (state.selectMode) {
+    await bulkMove(folderId);
+  } else {
+    const targetNote = contextMenuNote || state.note;
+    contextMenuNote = null;
+    if (!targetNote) return;
+    const updated = await api("PUT", `/api/notes/${targetNote.id}`, { folder_id: folderId });
+    if (state.note && state.note.id === updated.id) state.note = updated;
+    state.notes = state.notes.filter(n => n.id !== updated.id);
+    renderNotesList();
+    const destName = folderId ? (state.folders.find(f => f.id === folderId)?.name || "folder") : "root";
+    showToast(`Moved to "${destName}"`);
+  }
+}
+
+// Inline "New folder" row for the move picker: create a folder and move straight
+// into it, without closing the modal to make the folder separately.
+function makeNewFolderControl() {
+  const wrap = document.createElement("div");
+  wrap.className = "move-folder-new";
+  wrap.innerHTML = `
+    <button class="move-folder-newbtn" type="button">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>New folder…</span>
+    </button>
+    <div class="move-folder-newform hidden">
+      <input type="text" class="move-folder-newinput" placeholder="Folder name" autocomplete="off">
+      <button class="move-folder-newcreate btn-primary" type="button">Create &amp; move</button>
+    </div>`;
+  const btn = wrap.querySelector(".move-folder-newbtn");
+  const form = wrap.querySelector(".move-folder-newform");
+  const input = wrap.querySelector(".move-folder-newinput");
+  const createBtn = wrap.querySelector(".move-folder-newcreate");
+
+  btn.addEventListener("click", () => {
+    btn.classList.add("hidden");
+    form.classList.remove("hidden");
+    setTimeout(() => input.focus(), 30);
+  });
+  const doCreate = async () => {
+    const name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    createBtn.disabled = true;
+    const folder = await api("POST", "/api/folders", { name, parent_id: null });
+    state.folders.push(folder);
+    await moveIntoFolder(folder.id);   // create + move in one step
+  };
+  createBtn.addEventListener("click", doCreate);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter")  { e.preventDefault(); doCreate(); }
+    if (e.key === "Escape") { form.classList.add("hidden"); btn.classList.remove("hidden"); }
+  });
+  return wrap;
 }
 
 $("move-modal-close").addEventListener("click", () => { movingFolderNode = null; contextMenuNote = null; $("move-modal").classList.add("hidden"); });

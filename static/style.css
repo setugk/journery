@@ -959,6 +959,27 @@ body {
 /* The list itself scrolls instead of growing past the modal / viewport. */
 #move-folder-list { max-height: min(55vh, 380px); overflow-y: auto; }
 
+/* Inline "New folder" control at the top of the move picker */
+.move-folder-new { border-bottom: 1px solid var(--divider); margin-bottom: 4px; padding-bottom: 4px; }
+.move-folder-newbtn {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 9px 8px; background: none; border: none; border-radius: 8px;
+  font-size: var(--fs-13); font-family: inherit; color: var(--accent);
+  cursor: pointer; text-align: left; transition: background 0.08s;
+}
+.move-folder-newbtn:hover { background: var(--bg); }
+.move-folder-newbtn svg { flex-shrink: 0; }
+.move-folder-newbtn.hidden { display: none; }
+.move-folder-newform { display: flex; gap: 6px; padding: 4px; align-items: center; }
+.move-folder-newform.hidden { display: none; }
+.move-folder-newinput {
+  flex: 1; min-width: 0; padding: 8px 10px;
+  background: var(--bg); border: 1.5px solid var(--border); border-radius: 8px;
+  font-size: var(--fs-13); font-family: inherit; color: var(--text); outline: none;
+}
+.move-folder-newinput:focus { border-color: var(--border-mid); }
+.move-folder-newcreate { flex-shrink: 0; white-space: nowrap; padding: 8px 12px; font-size: var(--fs-13); }
+
 /* ── Toast ───────────────────────────────────────────────────────────── */
 
 .toast {
