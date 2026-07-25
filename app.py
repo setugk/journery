@@ -6,6 +6,7 @@ import json
 import zipfile
 from html.parser import HTMLParser
 from functools import wraps
+from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, Response
 import db
 
@@ -25,7 +26,7 @@ JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # Demo mode: the browser stores all data locally (see static/demo.js); the server
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
-APP_VERSION     = "1.27.9"
+APP_VERSION     = "1.28.0"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -456,6 +457,65 @@ def set_setting(key):
 @requires_auth
 def sync():
     return jsonify({"version": db.get_sync_version()})
+
+
+# ── Public share links ─────────────────────────────────────────────────────────
+
+def _share_payload(share):
+    if not share:
+        return {"shared": False}
+    return {"shared": True, "token": share["token"], "expires_at": share.get("expires_at")}
+
+
+@app.route("/api/notes/<note_id>/share", methods=["GET"])
+@requires_auth
+def get_share(note_id):
+    return jsonify(_share_payload(db.get_share(note_id)))
+
+
+@app.route("/api/notes/<note_id>/share", methods=["PUT"])
+@requires_auth
+def put_share(note_id):
+    if not db.get_note(note_id):
+        return jsonify({"error": "not found"}), 404
+    data = request.get_json(silent=True) or {}
+    expires_at = None
+    days = data.get("expires_in_days")
+    if days not in (None, "", 0, "0"):
+        try:
+            d = int(days)
+            if d > 0:
+                expires_at = (datetime.now(timezone.utc) + timedelta(days=d)).isoformat()
+        except (TypeError, ValueError):
+            pass
+    return jsonify(_share_payload(db.set_share(note_id, expires_at)))
+
+
+@app.route("/api/notes/<note_id>/share", methods=["DELETE"])
+@requires_auth
+def revoke_share(note_id):
+    db.delete_share(note_id)
+    return jsonify({"shared": False})
+
+
+_APP_CSS = None
+def _app_css():
+    # Inlined into the public share page so it needs no /static requests (only
+    # /shared/* has to be public in Cloudflare). Cached; re-read on restart/deploy.
+    global _APP_CSS
+    if _APP_CSS is None:
+        with open(os.path.join(os.path.dirname(__file__), "static", "style.css"), encoding="utf-8") as f:
+            _APP_CSS = f.read()
+    return _APP_CSS
+
+
+@app.route("/shared/<token>")
+def shared_view(token):
+    # PUBLIC — no @requires_auth. Cloudflare Access must be set to BYPASS /shared/*.
+    # Self-contained page (inlined CSS, note rendered server-side), so no other
+    # endpoint needs to be public and the note data never rides on an open API.
+    note = db.get_shared_note(token)
+    return render_template("shared.html", note=note, app_css=_app_css())
 
 
 @app.route("/sw.js")

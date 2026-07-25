@@ -889,6 +889,71 @@ body {
   color: var(--text-2); font-size: 1.15em; font-style: italic; line-height: 1.5;
 }
 
+/* ── Share modal ───────────────────────────────────────────────────────── */
+.share-hint { font-size: var(--fs-13); color: var(--text-muted); margin: 0 0 14px; line-height: 1.5; }
+.share-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.share-label { font-size: var(--fs-13); font-weight: 500; color: var(--text-2); }
+.share-select {
+  padding: 8px 10px; border-radius: 8px;
+  background: var(--bg); border: 1.5px solid var(--border);
+  font-size: var(--fs-13); font-family: inherit; color: var(--text); cursor: pointer; outline: none;
+}
+.share-select:focus { border-color: var(--border-mid); }
+.share-link-row { display: flex; gap: 6px; align-items: center; margin-bottom: 8px; }
+.share-link-row .modal-input { margin-bottom: 0; font-size: var(--fs-12); color: var(--text-2); }
+.share-link-row .btn-primary { flex-shrink: 0; padding: 9px 14px; }
+.share-expiry-note { font-size: var(--fs-12); color: var(--text-muted); margin: 0 0 14px; }
+.share-revoke-btn {
+  width: 100%; padding: 9px; border-radius: 8px;
+  background: none; border: 1.5px solid var(--danger);
+  font-size: var(--fs-13); font-family: inherit; font-weight: 500; color: var(--danger);
+  cursor: pointer; transition: background 0.1s;
+}
+.share-revoke-btn:hover { background: var(--danger-bg); }
+#share-active.hidden, #share-create-row.hidden { display: none; }
+
+/* ── Standalone note view (share link) ─────────────────────────────────── */
+.note-view {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--bg); overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.note-view.hidden { display: none; }
+body.note-view-mode .app { display: none; }
+.note-view-header {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; height: 56px;
+  background: var(--bg); border-bottom: 1px solid var(--divider);
+}
+.note-view-brand {
+  display: flex; align-items: center; gap: 8px;
+  font-size: var(--fs-15); font-weight: 700; letter-spacing: -0.02em;
+  color: var(--text); text-decoration: none;
+}
+.note-view-brand img { border-radius: 5px; }
+.note-view-copy {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; border-radius: 8px;
+  background: var(--surface); border: 1px solid var(--border);
+  font-size: var(--fs-13); font-family: inherit; font-weight: 500; color: var(--text);
+  cursor: pointer; transition: background 0.1s;
+}
+.note-view-copy:hover { background: var(--surface-2); }
+.note-view-copy svg { color: var(--text-muted); }
+.note-view-article { max-width: 720px; margin: 0 auto; padding: 28px 24px 96px; }
+.note-view-article h1 {
+  font-size: var(--fs-28); font-weight: 700; letter-spacing: -0.03em;
+  line-height: 1.25; color: var(--text); margin: 0 0 10px;
+}
+.note-view-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.note-view-tags.hidden { display: none; }
+.note-view-tags .nv-tag { font-size: var(--fs-13); color: var(--text-muted); }
+/* Reuse all the note rendering (lists, headings, code, hr, links…) but strip the
+   editor-only sizing so it reads as a document, not a text field. */
+.note-view .note-body-input { min-height: 0; padding: 0; border-top: none; }
+.note-view-empty { color: var(--text-muted); font-size: var(--fs-15); }
+
 .tags-chips { display: flex; flex-wrap: wrap; gap: 5px; }
 .editor-tag-chip {
   display: inline-flex; align-items: center; gap: 4px;

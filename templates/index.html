@@ -202,6 +202,10 @@
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
             <span>Copy to clipboard</span>
           </button>
+          <button id="share-note-btn">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+            <span>Share…</span>
+          </button>
           <button id="move-note-btn">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             <span>Move to folder…</span>
@@ -291,6 +295,25 @@
     </div>
   </div>
 
+</div>
+
+<!-- ── Standalone note view (opened via a #note/<id> share link) ── -->
+<div class="note-view hidden" id="note-view">
+  <header class="note-view-header">
+    <a class="note-view-brand" href="/" title="Open Journery">
+      <img src="/static/logo.svg?v={{ static_v }}" alt="" width="22" height="22" draggable="false">
+      <span>Journery</span>
+    </a>
+    <button class="note-view-copy" id="note-view-copy">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span>Copy</span>
+    </button>
+  </header>
+  <article class="note-view-article">
+    <h1 id="note-view-title"></h1>
+    <div class="note-view-tags hidden" id="note-view-tags"></div>
+    <div class="note-body-input" id="note-view-content"></div>
+  </article>
 </div>
 
 <!-- ── Settings view (full-screen fixed overlay, body-level sibling of .app) ── -->
@@ -538,6 +561,46 @@
       <div class="modal-actions">
         <button class="btn-secondary" id="link-cancel-btn">Cancel</button>
         <button class="btn-primary" id="link-confirm-btn">Add link</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Share note modal ── -->
+<div class="modal-overlay hidden" id="share-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span>Share note</span>
+      <button class="icon-btn" id="share-modal-close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="share-hint">Anyone with the link can read this note — no sign-in needed. Turn it off any time.</p>
+
+      <div class="share-row">
+        <label class="share-label" for="share-expiry">Expires</label>
+        <select class="share-select" id="share-expiry">
+          <option value="">Never</option>
+          <option value="1">After 1 day</option>
+          <option value="7">After 7 days</option>
+          <option value="30">After 30 days</option>
+        </select>
+      </div>
+
+      <!-- Not shared yet -->
+      <div class="modal-actions" id="share-create-row">
+        <button class="btn-primary" id="share-create-btn">Create link</button>
+      </div>
+
+      <!-- Shared -->
+      <div id="share-active" class="hidden">
+        <div class="share-link-row">
+          <input type="text" class="modal-input" id="share-url" readonly>
+          <button class="btn-primary" id="share-copy-btn">Copy</button>
+        </div>
+        <p class="share-expiry-note" id="share-expiry-note"></p>
+        <button class="share-revoke-btn" id="share-revoke-btn">Stop sharing</button>
       </div>
     </div>
   </div>

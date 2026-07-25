@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% if note %}{{ (note.title or 'Untitled') }} · Journery{% else %}Journery{% endif %}</title>
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#F5F5F5">
+<!-- Self-contained: CSS inlined so the page needs no /static requests (only
+     /shared/* must be public in Cloudflare). -->
+<style>{{ app_css|safe }}</style>
+</head>
+<body class="note-view-mode">
+<div class="note-view" id="note-view">
+  <header class="note-view-header">
+    <span class="note-view-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="border-radius:5px">
+        <g clip-path="url(#l0)"><rect width="24" height="24" rx="4" fill="#EE5339"/>
+        <path d="M19.332 2.75L19.2402 3.06934C18.511 5.59849 17.7722 7.38071 17.0107 8.37305L16.8584 8.56055L16.2188 9.2998L16.8555 10.0361L16.9443 10.1387L16.9072 10.2695C16.1101 13.0365 13.714 15.8301 10.4805 16.2979C9.50625 16.4387 8.72009 16.8924 8.11133 17.667C7.49758 18.448 7.05567 19.5668 6.80078 21.043L6.76465 21.25H4.71094L4.75293 20.9648C5.14058 18.2735 5.72688 13.7297 7.69336 9.86133C8.67851 7.92342 10.0157 6.14388 11.8564 4.84863C13.6999 3.55154 16.0354 2.75 19 2.75H19.332ZM16.2695 5.33398C12.4365 6.19059 9.99077 8.97416 8.4541 13.4531L8.30273 13.9092C8.20597 14.2075 8.11386 14.5084 8.02637 14.8105C8.67397 14.4009 9.40522 14.1324 10.2158 14.0156L10.5615 13.9521C12.2282 13.5786 13.709 12.2831 14.5234 10.6475L13.5 9.46484L13.3594 9.30176L13.5 9.13867L14.5986 7.86523L15.377 6.96289L15.4941 6.81543C15.7266 6.49918 15.9876 6.00671 16.2695 5.33398Z" fill="white" stroke="white" stroke-width="0.5"/></g>
+        <rect x="0.5" y="0.5" width="23" height="23" rx="3.5" stroke="white"/>
+        <defs><clipPath id="l0"><rect width="24" height="24" rx="4" fill="white"/></clipPath></defs>
+      </svg>
+      <span>Journery</span>
+    </span>
+    {% if note %}
+    <button class="note-view-copy" id="copy-btn" type="button">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      <span>Copy</span>
+    </button>
+    {% endif %}
+  </header>
+  <article class="note-view-article">
+    {% if note %}
+      <h1>{{ note.title or 'Untitled' }}</h1>
+      {% if note.tags %}
+      <div class="note-view-tags">{% for t in note.tags %}<span class="nv-tag">#{{ t }}</span>{% endfor %}</div>
+      {% endif %}
+      <div class="note-body-input" id="content">{{ note.body|safe }}</div>
+    {% else %}
+      <h1>Link unavailable</h1>
+      <div class="note-view-empty">This shared link has expired or been turned off.</div>
+    {% endif %}
+  </article>
+</div>
+{% if note %}
+<script>
+(function () {
+  document.querySelectorAll('#content a').forEach(function (a) { a.target = '_blank'; a.rel = 'noopener'; });
+  var btn = document.getElementById('copy-btn');
+  if (!btn) return;
+  var title = {{ (note.title or '')|tojson }};
+  btn.addEventListener('click', function () {
+    var body = document.getElementById('content').innerText.trim();
+    var text = [title.trim(), body].filter(Boolean).join('\n\n');
+    navigator.clipboard.writeText(text).then(function () {
+      var s = btn.querySelector('span'); s.textContent = 'Copied';
+      setTimeout(function () { s.textContent = 'Copy'; }, 1500);
+    });
+  });
+})();
+</script>
+{% endif %}
+</body>
+</html>

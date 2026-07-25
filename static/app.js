@@ -336,6 +336,10 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.28", date: "July 2026", changes: [
+    "Share any note with a public link — “Share…” in the ⋯ menu. Anyone with the link can read it (no sign-in), it opens as a clean standalone page, and you can set it to auto-expire (1/7/30 days) or turn it off any time",
+    "Bug fixes & improvements",
+  ]},
   { version: "1.27", date: "July 2026", changes: [
     "Search as you type — results appear right under the search bar, no separate page",
     "Notes save faster after you stop typing, and save right away when you leave the app",
@@ -2786,6 +2790,73 @@ $("copy-note-btn").addEventListener("click", () => {
     .catch(() => showToast("Copy failed"));
 });
 
+// ── Share note (public link) ─────────────────────────────────────────────────
+let shareSheetNoteId = null;
+const shareUrl = (token) => `${location.origin}/shared/${token}`;
+
+function shareExpiryText(expires_at) {
+  if (!expires_at) return "Never expires — turn it off to revoke.";
+  const d = new Date(expires_at);
+  const days = Math.ceil((d - Date.now()) / 86400000);
+  const when = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return days <= 0 ? "Expired." : `Expires ${when} (${days} day${days === 1 ? "" : "s"}).`;
+}
+
+function renderShareSheet(s) {
+  const shared = !!(s && s.shared);
+  $("share-active").classList.toggle("hidden", !shared);
+  $("share-create-row").classList.toggle("hidden", shared);
+  if (shared) {
+    $("share-url").value = shareUrl(s.token);
+    $("share-expiry-note").textContent = shareExpiryText(s.expires_at);
+  }
+}
+
+async function saveShare() {
+  const days = $("share-expiry").value || null;
+  const s = await api("PUT", `/api/notes/${shareSheetNoteId}/share`, { expires_in_days: days });
+  renderShareSheet(s);
+  return s;
+}
+
+$("share-note-btn").addEventListener("click", async () => {
+  overflowMenu.classList.add("hidden");
+  if (state.dirty) await saveNoteNow();
+  const note = state.note;
+  if (!note || !note.id) { showToast("Type something first"); return; }
+  shareSheetNoteId = note.id;
+  $("share-expiry").value = "";
+  try { renderShareSheet(await api("GET", `/api/notes/${note.id}/share`)); }
+  catch { renderShareSheet({ shared: false }); }
+  $("share-modal").classList.remove("hidden");
+});
+
+$("share-create-btn").addEventListener("click", async () => {
+  const s = await saveShare();
+  navigator.clipboard.writeText(shareUrl(s.token))
+    .then(() => showToast("Link created & copied"))
+    .catch(() => showToast("Link created"));
+});
+
+// Changing the expiry while already shared updates it in place (same link).
+$("share-expiry").addEventListener("change", () => {
+  if (!$("share-active").classList.contains("hidden")) saveShare().then(() => showToast("Expiry updated"));
+});
+
+$("share-copy-btn").addEventListener("click", () => {
+  navigator.clipboard.writeText($("share-url").value)
+    .then(() => showToast("Link copied")).catch(() => showToast("Copy failed"));
+});
+
+$("share-revoke-btn").addEventListener("click", async () => {
+  await api("DELETE", `/api/notes/${shareSheetNoteId}/share`);
+  renderShareSheet({ shared: false });
+  showToast("Sharing stopped");
+});
+
+$("share-modal-close").addEventListener("click", () => $("share-modal").classList.add("hidden"));
+$("share-modal").addEventListener("click", e => { if (e.target === $("share-modal")) $("share-modal").classList.add("hidden"); });
+
 // ── Save button ────────────────────────────────────────────────────────────────
 
 $("editor-save-btn").addEventListener("click", async () => {
@@ -3474,12 +3545,46 @@ async function refreshOpenNoteFromServer() {
   showToast("Updated from another device");
 }
 
-setInterval(syncCheck, 2000);
-// Returning to a backgrounded tab: browsers throttle setInterval while hidden,
-// so sync right away on refocus instead of waiting out the throttled interval.
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") syncCheck();
-});
+// A #note/<id> share link opens the standalone read view instead of the app —
+// no sidebar, no nav, no sync polling.
+const shareNoteId = decodeURIComponent((location.hash.match(/^#note\/(.+)$/) || [])[1] || "");
+
+if (!shareNoteId) {
+  setInterval(syncCheck, 2000);
+  // Returning to a backgrounded tab: browsers throttle setInterval while hidden,
+  // so sync right away on refocus instead of waiting out the throttled interval.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") syncCheck();
+  });
+}
+
+// Render the standalone note view for a share link: Journery header + the note +
+// a copy button. Read-only; behind the same access gate as the app.
+async function renderNoteView(id) {
+  const view = $("note-view");
+  let note = null;
+  try { note = await api("GET", `/api/notes/${id}`); } catch (_) {}
+  if (note && !note.deleted_at) {
+    $("note-view-title").textContent = note.title || "Untitled";
+    const content = $("note-view-content");
+    content.innerHTML = bodyToHtml(note.body || "");
+    content.querySelectorAll("a").forEach(a => { a.target = "_blank"; a.rel = "noopener"; });
+    const tagsEl = $("note-view-tags");
+    tagsEl.innerHTML = (note.tags || []).map(t => `<span class="nv-tag">#${esc(t)}</span>`).join("");
+    tagsEl.classList.toggle("hidden", !(note.tags || []).length);
+    $("note-view-copy").addEventListener("click", () => {
+      const parts = [(note.title || "").trim(), content.innerText.trim()].filter(Boolean);
+      navigator.clipboard.writeText(parts.join("\n\n"))
+        .then(() => showToast("Copied to clipboard"))
+        .catch(() => showToast("Copy failed"));
+    });
+  } else {
+    $("note-view-title").textContent = "Note not found";
+    $("note-view-content").innerHTML = "<div>This note may have been deleted, or the link is invalid.</div>";
+    $("note-view-copy").style.display = "none";
+  }
+  view.classList.remove("hidden");
+}
 
 // ── Resize handles ────────────────────────────────────────────────────────────
 
@@ -3622,8 +3727,17 @@ window.addEventListener("online", updateOfflinePill);
 window.addEventListener("offline", updateOfflinePill);
 updateOfflinePill();
 
-// Default the notes panel to Recents on load (matches state.context above).
-paneTitle.textContent = recentsPaneTitle();
-setActiveNav(navRecents);
-
-loadAll();
+if (shareNoteId) {
+  // Share link → standalone read view; skip the full app load. Apply the viewer's
+  // saved custom theme (loadAll, which normally does this, is skipped; basic
+  // dark/light already applied above via applyDark).
+  document.body.classList.add("note-view-mode");
+  const localTheme = localStorage.getItem("activeTheme");
+  if (localTheme) { try { applyTheme(JSON.parse(localTheme)); } catch (_) {} }
+  renderNoteView(shareNoteId);
+} else {
+  // Default the notes panel to Recents on load (matches state.context above).
+  paneTitle.textContent = recentsPaneTitle();
+  setActiveNav(navRecents);
+  loadAll();
+}

@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import uuid
+import secrets
 from datetime import datetime, timezone
 
 # Defaults to the container's /data volume; override with JOURNERY_DB to run
@@ -17,7 +18,7 @@ def get_conn():
     return conn
 
 
-_SCHEMA_VERSION = 3
+_SCHEMA_VERSION = 4
 
 
 def init_db():
@@ -78,8 +79,21 @@ def init_db():
             """)
             conn.execute("UPDATE schema_version SET version = 3")
 
+        if current < 4:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS shares (
+                    token TEXT PRIMARY KEY,
+                    note_id TEXT NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_shares_note ON shares(note_id)")
+            conn.execute("UPDATE schema_version SET version = 4")
+
     conn.close()
     purge_old_trash()
+    purge_expired_shares()
 
 
 def now():
@@ -496,3 +510,62 @@ def get_sync_version():
     row = conn.execute("SELECT MAX(updated_at) as v FROM notes").fetchone()
     conn.close()
     return row["v"] or ""
+
+
+# ── Public share links ─────────────────────────────────────────────────────────
+# One share per note. The token is the public, unguessable key; expires_at is an
+# ISO timestamp or None (never expires). Deleting the row revokes the link.
+
+def get_share(note_id):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM shares WHERE note_id=?", (note_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def set_share(note_id, expires_at):
+    """Create the share (new token) or update the existing one's expiry in place
+    (keeps the link stable). Returns {token, expires_at}."""
+    conn = get_conn()
+    with conn:
+        row = conn.execute("SELECT token FROM shares WHERE note_id=?", (note_id,)).fetchone()
+        if row:
+            token = row["token"]
+            conn.execute("UPDATE shares SET expires_at=? WHERE token=?", (expires_at, token))
+        else:
+            token = secrets.token_urlsafe(16)
+            conn.execute(
+                "INSERT INTO shares (token, note_id, created_at, expires_at) VALUES (?,?,?,?)",
+                (token, note_id, now(), expires_at),
+            )
+    conn.close()
+    return {"token": token, "expires_at": expires_at}
+
+
+def delete_share(note_id):
+    conn = get_conn()
+    with conn:
+        conn.execute("DELETE FROM shares WHERE note_id=?", (note_id,))
+    conn.close()
+
+
+def get_shared_note(token):
+    """The live note for a valid, non-expired share token — else None."""
+    conn = get_conn()
+    row = conn.execute("SELECT note_id, expires_at FROM shares WHERE token=?", (token,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    if row["expires_at"] and row["expires_at"] < now():
+        return None
+    note = get_note(row["note_id"])
+    if not note or note.get("deleted_at"):
+        return None
+    return note
+
+
+def purge_expired_shares():
+    conn = get_conn()
+    with conn:
+        conn.execute("DELETE FROM shares WHERE expires_at IS NOT NULL AND expires_at < ?", (now(),))
+    conn.close()
