@@ -340,7 +340,7 @@ const CHANGELOG = [
     "Search as you type — results appear right under the search bar, no separate page",
     "Notes save faster after you stop typing, and save right away when you leave the app",
     "A note you have open now updates live when you edit it on another device",
-    "Markdown list shortcuts (“* ”, “- ”, “1. ”) now work on any line — including pasted or imported notes, not just freshly typed ones",
+    "Markdown shortcuts — lists (“* ”, “- ”, “1. ”) and the “---” divider — now work on any line, including pasted or imported notes, not just freshly typed ones",
     "Bug fixes & improvements",
   ]},
   { version: "1.26", date: "July 2026", changes: [
@@ -1829,22 +1829,71 @@ function mdLineBeforeCaret(block, range) {
   return line;
 }
 
-function mdInsertDivider(block) {
-  const hr   = document.createElement('hr');
-  const next = document.createElement('div');
-  next.appendChild(document.createElement('br'));
-  if (block !== noteBody) {
-    block.replaceWith(hr);
-    hr.insertAdjacentElement('afterend', next);
-  } else {
-    noteBody.innerHTML = '';
-    noteBody.appendChild(hr);
-    noteBody.appendChild(next);
+function mdInsertDivider(block, range) {
+  const hr    = document.createElement('hr');
+  const after = document.createElement('div');
+  after.appendChild(document.createElement('br'));
+  const placeCaret = (el) => {
+    const r = document.createRange(); r.setStart(el, 0); r.collapse(true);
+    const s = window.getSelection(); if (s) { s.removeAllRanges(); s.addRange(r); }
+  };
+  // Caret at the START of an existing following block (into its first <li> if a list).
+  const placeCaretStart = (el) => {
+    let target = el;
+    if (el.nodeName === 'UL' || el.nodeName === 'OL') target = el.querySelector('li') || el;
+    const r = document.createRange(); r.selectNodeContents(target); r.collapse(true);
+    const s = window.getSelection(); if (s) { s.removeAllRanges(); s.addRange(r); }
+  };
+
+  // No caret info, or the whole editor is the block → original whole-block behavior.
+  if (block === noteBody || !range) {
+    if (block === noteBody) { noteBody.innerHTML = ''; noteBody.appendChild(hr); noteBody.appendChild(after); }
+    else { block.replaceWith(hr); hr.insertAdjacentElement('afterend', after); }
+    placeCaret(after);
+    scheduleSave();
+    return;
   }
-  const r = document.createRange();
-  r.setStart(next, 0); r.collapse(true);
-  const s = window.getSelection();
-  if (s) { s.removeAllRanges(); s.addRange(r); }
+
+  // Split the block at the caret's visual LINE so a divider typed on a <br>-joined
+  // line replaces ONLY that line and keeps its siblings (the old code replaced the
+  // whole block, which wiped adjacent lines in pasted/edited notes).
+  let node = range.startContainer;
+  if (node === block) node = block.childNodes[Math.max(0, range.startOffset - 1)] || block.firstChild;
+  while (node && node.parentNode && node.parentNode !== block) node = node.parentNode; // climb to block's direct child
+  if (!node) { block.replaceWith(hr); hr.insertAdjacentElement('afterend', after); placeCaret(after); scheduleSave(); return; }
+
+  let first = node; while (first.previousSibling && first.previousSibling.nodeName !== 'BR') first = first.previousSibling;
+  let last  = node; while (last.nextSibling  && last.nextSibling.nodeName  !== 'BR') last  = last.nextSibling;
+  const brBefore = first.previousSibling && first.previousSibling.nodeName === 'BR' ? first.previousSibling : null;
+  const brAfter  = last.nextSibling  && last.nextSibling.nodeName  === 'BR' ? last.nextSibling  : null;
+
+  // Lines below the divider move into a new block.
+  const afterBlock = document.createElement('div');
+  if (brAfter) { let n = brAfter.nextSibling; while (n) { const nx = n.nextSibling; afterBlock.appendChild(n); n = nx; } }
+
+  // Drop the current line (the "--" marker) and its bounding <br>s.
+  let n = first;
+  while (n) { const nx = n.nextSibling; const stop = (n === last); n.remove(); if (stop) break; n = nx; }
+  if (brBefore) brBefore.remove();
+  if (brAfter)  brAfter.remove();
+
+  // `block` now holds the lines ABOVE the divider (may be empty).
+  const blockEmpty = !block.textContent.trim() && !block.querySelector('img,hr,li');
+  if (blockEmpty) block.replaceWith(hr);
+  else            block.insertAdjacentElement('afterend', hr);
+
+  if (afterBlock.childNodes.length) {
+    hr.insertAdjacentElement('afterend', afterBlock);
+    placeCaret(afterBlock);
+  } else if (hr.nextSibling) {
+    // Content already follows the divider — don't add a phantom empty line
+    // (it can't be deleted without also removing the <hr>). Caret into it.
+    placeCaretStart(hr.nextSibling);
+  } else {
+    // Divider is last — a trailing editable line is needed to type after it.
+    hr.insertAdjacentElement('afterend', after);
+    placeCaret(after);
+  }
   scheduleSave();
 }
 
@@ -1867,40 +1916,82 @@ function mdInsertList(block, tag) {
 }
 
 // Convert the current line to a list when a markdown marker was just typed at
-// its start. Delete the marker from the caret's text node (deleteData keeps the
-// node even if it empties), then hand off to the browser's native list command
-// — the exact path the formatting bar uses, so it correctly handles existing
-// text on the line, the unwrapped first line, and continuation/backspace.
+// its start. Built manually (not via execCommand): WebKit/iOS leaves the caret
+// OUTSIDE the new <li> after insertUnorderedList, so typed text lands on the next
+// line. We move the current visual line's nodes into a fresh <li>, strip the
+// marker, preserve <br>-joined siblings (split the block), and place the caret in
+// the <li> ourselves — deterministic across engines.
 function mdMakeList(markerLen, tag) {
   const sel = window.getSelection();
-  if (sel && sel.rangeCount) {
-    const r = sel.getRangeAt(0);
-    const node = r.startContainer;
-    if (node.nodeType === Node.TEXT_NODE) {
-      const off  = r.startOffset;
-      const from = Math.max(0, off - markerLen);
-      node.deleteData(from, off - from);
-      sel.removeAllRanges();
-      const c = document.createRange();
-      c.setStart(node, Math.min(from, node.length)); c.collapse(true);
-      sel.addRange(c);
-    }
+  if (!sel || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  const block = mdActiveBlock();
+  if (!block) return;
+
+  const list = document.createElement(tag === 'ol' ? 'ol' : 'ul');
+  const li   = document.createElement('li');
+  list.appendChild(li);
+
+  // Caret into the <li>: at the end of its content (start when empty).
+  const caretInLi = () => {
+    const r = document.createRange();
+    r.selectNodeContents(li); r.collapse(false);
+    sel.removeAllRanges(); sel.addRange(r);
+  };
+  const fillIfEmpty = () => {
+    if (!li.textContent && !li.querySelector('br,img')) li.appendChild(document.createElement('br'));
+  };
+
+  // Whole editor is the block (empty/first line): just drop an empty bullet in.
+  if (block === noteBody) {
+    fillIfEmpty();
+    noteBody.innerHTML = '';
+    noteBody.appendChild(list);
+    caretInLi();
+    updateNoteBodyPlaceholder(); scheduleSave();
+    return;
   }
-  // The first line of a note is often a bare text node directly under the editor
-  // (not wrapped in a <div>). Native insertUnorderedList can't wrap a bare text
-  // node — it makes an empty bullet and orphans the text. Wrap the line in a
-  // block first so the list command has a real line to convert.
-  if (mdActiveBlock() === noteBody) document.execCommand('formatBlock', false, 'div');
-  document.execCommand(tag === 'ol' ? 'insertOrderedList' : 'insertUnorderedList');
-  // Converting a <br>-joined line leaves that line's old <br> separator stranded
-  // as a blank line right before the new list — drop it so the result is clean.
-  const li   = currentLi();
-  const list = li && li.closest('ul,ol');
-  if (list && list.previousSibling && list.previousSibling.nodeName === 'BR') {
-    list.previousSibling.remove();
+
+  // Find the caret's visual line within the block (so <br>-joined siblings survive).
+  let node = range.startContainer;
+  if (node === block) node = block.childNodes[Math.max(0, range.startOffset - 1)] || block.firstChild;
+  while (node && node.parentNode && node.parentNode !== block) node = node.parentNode;
+  let first = node, last = node;
+  if (node) {
+    while (first.previousSibling && first.previousSibling.nodeName !== 'BR') first = first.previousSibling;
+    while (last.nextSibling  && last.nextSibling.nodeName  !== 'BR') last  = last.nextSibling;
   }
-  updateNoteBodyPlaceholder();
-  scheduleSave();
+  const brBefore = first && first.previousSibling && first.previousSibling.nodeName === 'BR' ? first.previousSibling : null;
+  const brAfter  = last  && last.nextSibling  && last.nextSibling.nodeName  === 'BR' ? last.nextSibling  : null;
+
+  // Move the line's nodes into the <li>.
+  let n = first;
+  while (n) { const nx = n.nextSibling; const stop = (n === last); li.appendChild(n); if (stop) break; n = nx; }
+
+  // Strip the leading marker (markerLen chars) + one following space if present
+  // (the space is the prevented trigger when typing, but can be literal in pasted
+  // "* text" content) from the <li>'s first text.
+  let t = li;
+  while (t && t.nodeType !== Node.TEXT_NODE) t = t.firstChild;
+  if (t && t.nodeType === Node.TEXT_NODE) {
+    t.deleteData(0, Math.min(markerLen, t.length));
+    if (t.data && t.data[0] === ' ') t.deleteData(0, 1);
+  }
+  fillIfEmpty();
+
+  // Lines below move to a new block; drop the line's bounding <br>s.
+  const afterBlock = document.createElement('div');
+  if (brAfter) { let m = brAfter.nextSibling; while (m) { const nx = m.nextSibling; afterBlock.appendChild(m); m = nx; } }
+  if (brBefore) brBefore.remove();
+  if (brAfter)  brAfter.remove();
+
+  const blockEmpty = !block.textContent.trim() && !block.querySelector('img,hr,li,ul,ol');
+  if (blockEmpty) block.replaceWith(list);
+  else            block.insertAdjacentElement('afterend', list);
+  if (afterBlock.childNodes.length) list.insertAdjacentElement('afterend', afterBlock);
+
+  caretInLi();
+  updateNoteBodyPlaceholder(); scheduleSave();
 }
 
 // beforeinput fires BEFORE the character lands in the DOM.
@@ -1926,10 +2017,18 @@ noteBody.addEventListener('beforeinput', e => {
     if (/^\d+\.$/.test(before))            { e.preventDefault(); mdMakeList(before.length, 'ol'); return; }
     return;
   }
-  // Third dash → divider (catches "--" + "-", and "–" + "-" after iOS autocorrect)
+  // Third dash → divider (catches "--" + "-", and "–" + "-" after iOS autocorrect).
+  // Line-aware (like the list check) so it fires on a <br>-joined line too, not
+  // only a line that's its own block.
   if (char === '-') {
-    const cur = mdBlockText(block).trim();
-    if (cur === '--' || cur === '–') { e.preventDefault(); mdInsertDivider(block); }
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const range = sel.getRangeAt(0);
+    const cur = (mdLineBeforeCaret(block, range) || '').trim();
+    // Third dash → divider. "--" (literal) OR a single en/em-dash (iOS smart
+    // punctuation collapses two hyphens into one "–"/"—") both mean two dashes so
+    // far, so a third makes three.
+    if (cur === '--' || cur === '–' || cur === '—') { e.preventDefault(); mdInsertDivider(block, range); }
   }
 });
 
@@ -1971,10 +2070,16 @@ noteBody.addEventListener("input", () => {
   updateNoteBodyPlaceholder();
   const block = mdActiveBlock();
   if (block) {
-    const raw  = mdBlockText(block);
-    const trim = raw.trim();
-    if (['---', '—', '–', '—-', '–-'].includes(trim)) {
-      mdInsertDivider(block);
+    const raw   = mdBlockText(block);
+    const sel   = window.getSelection();
+    const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    // Divider check is line-aware (works on a <br>-joined line); the list
+    // fallbacks stay whole-block (they only ever rescue a truly empty line).
+    const line  = (range ? (mdLineBeforeCaret(block, range) || '') : raw).trim();
+    // Only THREE-dash equivalents — NOT a bare "—"/"–", which is just two dashes
+    // after iOS autocorrect (and also stops em-dashes in prose becoming dividers).
+    if (['---', '—-', '–-', '——'].includes(line)) {
+      mdInsertDivider(block, range);
     } else if (raw === '* ' || raw === '- ') {
       mdInsertList(block, 'ul');
     } else if (/^\d+\. $/.test(raw)) {
@@ -2082,6 +2187,17 @@ function caretAtStartOfNote() {
   return test.toString() === '';
 }
 
+// True when the caret is collapsed at the very start of `li`'s own content.
+function caretAtStartOfLi(li) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || !sel.isCollapsed) return false;
+  const r = sel.getRangeAt(0);
+  const test = document.createRange();
+  test.selectNodeContents(li);
+  try { test.setEnd(r.startContainer, r.startOffset); } catch (_) { return false; }
+  return test.toString() === '';
+}
+
 noteBody.addEventListener("keydown", e => {
   if (e.key === "Tab") {
     e.preventDefault();
@@ -2111,20 +2227,27 @@ noteBody.addEventListener("keydown", e => {
     return;
   }
 
-  // Backspace at the very START of the note, inside a list item: native does
-  // nothing (no previous line to merge into), so the first bullet feels
-  // un-deletable. Convert it out of the list — outdentLi turns a top-level item
-  // back into a plain line. Only fires at note-start, so bullets elsewhere keep
-  // their normal native backspace/merge behavior.
+  // Backspace at the start of the FIRST item of a top-level list, when native
+  // would destroy adjacent structure: (a) at note-start there's no previous line
+  // to merge into, so the first bullet feels un-deletable; (b) when the list sits
+  // directly under a divider, native backspace eats BOTH the bullet and the <hr>.
+  // In both cases, un-bullet the item into a plain line (outdentLi) and leave the
+  // divider alone — a SECOND backspace on that plain line then removes the <hr>
+  // natively. Bullets elsewhere keep their normal native backspace/merge.
   if (e.key === "Backspace" && !e.shiftKey) {
     const li = currentLi();
-    if (li && caretAtStartOfNote()) {
-      e.preventDefault();
-      const target = outdentLi(li);
-      if (target) placeCaretIn(target);
-      updateNoteBodyPlaceholder();
-      scheduleSave();
-      return;
+    if (li && caretAtStartOfLi(li)) {
+      const list = li.closest('ul,ol');
+      const firstTop = list && list.parentElement === noteBody && list.firstElementChild === li;
+      const afterHr  = firstTop && list.previousElementSibling && list.previousElementSibling.nodeName === 'HR';
+      if (caretAtStartOfNote() || afterHr) {
+        e.preventDefault();
+        const target = outdentLi(li);
+        if (target) placeCaretIn(target);
+        updateNoteBodyPlaceholder();
+        scheduleSave();
+        return;
+      }
     }
   }
 
