@@ -336,6 +336,12 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.29", date: "July 2026", changes: [
+    "Share a whole tag — open a tag, tap the share icon, and get one public link to every note with that tag (a read-only index anyone can browse). Add the tag to a note to publish it, remove it to un-publish. Expiry + revoke work just like note links.",
+    "Cleaner, more balanced Share dialog",
+    "Tidier tag view — Share, Sort, and Select now live in a single ⋯ menu, with “+” always at hand",
+    "Bug fixes & improvements",
+  ]},
   { version: "1.28", date: "July 2026", changes: [
     "Share any note with a public link — “Share…” in the ⋯ menu. Anyone with the link can read it (no sign-in), it opens as a clean standalone page, and you can set it to auto-expire (1/7/30 days) or turn it off any time",
     "Bug fixes & improvements",
@@ -1237,30 +1243,56 @@ function sortedNotes() {
   }
 }
 
-const sortMenu    = $("sort-menu");
-const newItemMenu = $("new-item-menu");
+const sortMenu     = $("sort-menu");
+const newItemMenu  = $("new-item-menu");
+const notesOverflowMenu = $("notes-overflow-menu");
+
+function closeHeaderMenus() {
+  sortMenu.classList.add("hidden");
+  newItemMenu.classList.add("hidden");
+  notesOverflowMenu.classList.add("hidden");
+}
 
 $("sort-btn").addEventListener("click", e => {
   e.stopPropagation();
   newItemMenu.classList.add("hidden");
+  notesOverflowMenu.classList.add("hidden");
   sortMenu.classList.toggle("hidden");
 });
 
-sortMenu.querySelectorAll("[data-sort]").forEach(btn => {
+// Sort options live in two menus (inline sort + tag-view overflow) — bind both.
+document.querySelectorAll("#sort-menu [data-sort], #notes-overflow-menu [data-sort]").forEach(btn => {
   btn.addEventListener("click", () => {
     state.sortBy = btn.dataset.sort;
     localStorage.setItem("sortBy", state.sortBy);
-    sortMenu.classList.add("hidden");
+    closeHeaderMenus();
     updateSortUI();
     renderNotesList();
   });
 });
 
 function updateSortUI() {
-  sortMenu.querySelectorAll("[data-sort]").forEach(btn => {
+  document.querySelectorAll("#sort-menu [data-sort], #notes-overflow-menu [data-sort]").forEach(btn => {
     btn.classList.toggle("active-sort", btn.dataset.sort === state.sortBy);
   });
 }
+
+// ── Tag-view overflow menu ────────────────────────────────────────────────────
+
+$("notes-overflow-btn").addEventListener("click", e => {
+  e.stopPropagation();
+  sortMenu.classList.add("hidden");
+  newItemMenu.classList.add("hidden");
+  notesOverflowMenu.classList.toggle("hidden");
+});
+$("share-tag-option").addEventListener("click", () => {
+  notesOverflowMenu.classList.add("hidden");
+  if (state.context.type === "tag") openShareSheet({ kind: "tag", tag: state.context.id });
+});
+$("select-notes-option").addEventListener("click", () => {
+  notesOverflowMenu.classList.add("hidden");
+  enterSelectMode();
+});
 
 // ── New item dropdown ─────────────────────────────────────────────────────────
 
@@ -1268,6 +1300,7 @@ $("new-note-btn").addEventListener("click", e => {
   e.stopPropagation();
   if (state.context.type === "folder") {
     sortMenu.classList.add("hidden");
+    notesOverflowMenu.classList.add("hidden");
     newItemMenu.classList.toggle("hidden");
   } else {
     newNote();
@@ -1280,12 +1313,10 @@ $("new-subfolder-option").addEventListener("click", () => {
   openFolderModal(null, state.context.type === "folder" ? state.context.id : null);
 });
 
-document.addEventListener("click", () => {
-  sortMenu.classList.add("hidden");
-  newItemMenu.classList.add("hidden");
-});
+document.addEventListener("click", closeHeaderMenus);
 sortMenu.addEventListener("click", e => e.stopPropagation());
 newItemMenu.addEventListener("click", e => e.stopPropagation());
+notesOverflowMenu.addEventListener("click", e => e.stopPropagation());
 
 // ── Pane search ───────────────────────────────────────────────────────────────
 
@@ -1327,6 +1358,8 @@ const CHEV_RIGHT_SVG = `<svg class="folder-list-item-chev" width="12" height="12
 function renderNotesList() {
   // Toggle pane context class for trash-specific UI hiding
   notesPaneEl.dataset.ctx = state.context.type === "trash" ? "trash" : "";
+  // Tag view collapses sort/select/share into the overflow menu.
+  notesPaneEl.classList.toggle("tag-view", state.context.type === "tag");
 
   // ── Trash context ──────────────────────────────────────────────────────
   if (state.context.type === "trash") {
@@ -2005,6 +2038,10 @@ noteBody.addEventListener('beforeinput', e => {
   const char  = e.data || '';
   const block = mdActiveBlock();
   if (!block) return;
+  // Already inside a list item → markdown shortcuts don't apply (and mdActiveBlock
+  // is the <ul>/<ol>, whose "line" logic would mangle it, e.g. "* " at the start of
+  // a bullet built a nested <li><li>…</li></li>). Let the character land literally.
+  if (currentLi()) return;
 
   if (char === ' ') {
     // Look at the text on the current VISUAL LINE up to the caret — so a marker
@@ -2241,10 +2278,13 @@ noteBody.addEventListener("keydown", e => {
   if (e.key === "Backspace" && !e.shiftKey) {
     const li = currentLi();
     if (li && caretAtStartOfLi(li)) {
-      const list = li.closest('ul,ol');
-      const firstTop = list && list.parentElement === noteBody && list.firstElementChild === li;
-      const afterHr  = firstTop && list.previousElementSibling && list.previousElementSibling.nodeName === 'HR';
-      if (caretAtStartOfNote() || afterHr) {
+      // Climb to the top-level list block (direct child of noteBody), so this
+      // works whether the item's list is top-level, nested, or wrapped.
+      let top = li.closest('ul,ol');
+      while (top && top.parentElement && top.parentElement !== noteBody) top = top.parentElement;
+      const atTopStart = top && caretAtStartOfLi(top);   // caret at the very start of the whole list
+      const afterHr    = top && top.previousElementSibling && top.previousElementSibling.nodeName === 'HR';
+      if (atTopStart && (caretAtStartOfNote() || afterHr)) {
         e.preventDefault();
         const target = outdentLi(li);
         if (target) placeCaretIn(target);
@@ -2790,9 +2830,12 @@ $("copy-note-btn").addEventListener("click", () => {
     .catch(() => showToast("Copy failed"));
 });
 
-// ── Share note (public link) ─────────────────────────────────────────────────
-let shareSheetNoteId = null;
+// ── Share (public link) — works for a single note OR a whole tag ──────────────
+let shareTarget = null;   // { kind:'note', id } | { kind:'tag', tag }
 const shareUrl = (token) => `${location.origin}/shared/${token}`;
+const shareApiPath = () => shareTarget.kind === "tag"
+  ? `/api/tags/${encodeURIComponent(shareTarget.tag)}/share`
+  : `/api/notes/${shareTarget.id}/share`;
 
 function shareExpiryText(expires_at) {
   if (!expires_at) return "Never expires — turn it off to revoke.";
@@ -2805,18 +2848,32 @@ function shareExpiryText(expires_at) {
 function renderShareSheet(s) {
   const shared = !!(s && s.shared);
   $("share-active").classList.toggle("hidden", !shared);
-  $("share-create-row").classList.toggle("hidden", shared);
+  $("share-create-btn").classList.toggle("hidden", shared);
+  const note = $("share-expiry-note");
+  note.classList.toggle("hidden", !shared);
   if (shared) {
     $("share-url").value = shareUrl(s.token);
-    $("share-expiry-note").textContent = shareExpiryText(s.expires_at);
+    note.textContent = shareExpiryText(s.expires_at);
   }
 }
 
 async function saveShare() {
-  const days = $("share-expiry").value || null;
-  const s = await api("PUT", `/api/notes/${shareSheetNoteId}/share`, { expires_in_days: days });
+  const s = await api("PUT", shareApiPath(), { expires_in_days: $("share-expiry").value || null });
   renderShareSheet(s);
   return s;
+}
+
+async function openShareSheet(target) {
+  shareTarget = target;
+  const isTag = target.kind === "tag";
+  $("share-modal-title").textContent = isTag ? "Share tag" : "Share note";
+  $("share-hint").textContent = isTag
+    ? `Anyone with the link can read every note tagged #${target.tag} — no sign-in needed. New notes you add this tag to appear automatically; remove the tag to un-share.`
+    : "Anyone with the link can read this note — no sign-in needed.";
+  $("share-expiry").value = "";
+  try { renderShareSheet(await api("GET", shareApiPath())); }
+  catch { renderShareSheet({ shared: false }); }
+  $("share-modal").classList.remove("hidden");
 }
 
 $("share-note-btn").addEventListener("click", async () => {
@@ -2824,11 +2881,7 @@ $("share-note-btn").addEventListener("click", async () => {
   if (state.dirty) await saveNoteNow();
   const note = state.note;
   if (!note || !note.id) { showToast("Type something first"); return; }
-  shareSheetNoteId = note.id;
-  $("share-expiry").value = "";
-  try { renderShareSheet(await api("GET", `/api/notes/${note.id}/share`)); }
-  catch { renderShareSheet({ shared: false }); }
-  $("share-modal").classList.remove("hidden");
+  openShareSheet({ kind: "note", id: note.id });
 });
 
 $("share-create-btn").addEventListener("click", async () => {
@@ -2849,7 +2902,7 @@ $("share-copy-btn").addEventListener("click", () => {
 });
 
 $("share-revoke-btn").addEventListener("click", async () => {
-  await api("DELETE", `/api/notes/${shareSheetNoteId}/share`);
+  await api("DELETE", shareApiPath());
   renderShareSheet({ shared: false });
   showToast("Sharing stopped");
 });

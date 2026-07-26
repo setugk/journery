@@ -26,7 +26,7 @@ JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # Demo mode: the browser stores all data locally (see static/demo.js); the server
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
-APP_VERSION     = "1.28.0"
+APP_VERSION     = "1.29.3"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -467,6 +467,17 @@ def _share_payload(share):
     return {"shared": True, "token": share["token"], "expires_at": share.get("expires_at")}
 
 
+def _expires_at_from(data):
+    days = data.get("expires_in_days")
+    if days in (None, "", 0, "0"):
+        return None
+    try:
+        d = int(days)
+        return (datetime.now(timezone.utc) + timedelta(days=d)).isoformat() if d > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
 @app.route("/api/notes/<note_id>/share", methods=["GET"])
 @requires_auth
 def get_share(note_id):
@@ -479,22 +490,33 @@ def put_share(note_id):
     if not db.get_note(note_id):
         return jsonify({"error": "not found"}), 404
     data = request.get_json(silent=True) or {}
-    expires_at = None
-    days = data.get("expires_in_days")
-    if days not in (None, "", 0, "0"):
-        try:
-            d = int(days)
-            if d > 0:
-                expires_at = (datetime.now(timezone.utc) + timedelta(days=d)).isoformat()
-        except (TypeError, ValueError):
-            pass
-    return jsonify(_share_payload(db.set_share(note_id, expires_at)))
+    return jsonify(_share_payload(db.set_share(note_id, _expires_at_from(data))))
 
 
 @app.route("/api/notes/<note_id>/share", methods=["DELETE"])
 @requires_auth
 def revoke_share(note_id):
     db.delete_share(note_id)
+    return jsonify({"shared": False})
+
+
+@app.route("/api/tags/<tag>/share", methods=["GET"])
+@requires_auth
+def tag_share_status(tag):
+    return jsonify(_share_payload(db.get_tag_share(tag)))
+
+
+@app.route("/api/tags/<tag>/share", methods=["PUT"])
+@requires_auth
+def tag_share_set(tag):
+    data = request.get_json(silent=True) or {}
+    return jsonify(_share_payload(db.set_tag_share(tag, _expires_at_from(data))))
+
+
+@app.route("/api/tags/<tag>/share", methods=["DELETE"])
+@requires_auth
+def tag_share_revoke(tag):
+    db.delete_tag_share(tag)
     return jsonify({"shared": False})
 
 
@@ -509,13 +531,33 @@ def _app_css():
     return _APP_CSS
 
 
+def _render_shared(**kw):
+    kw.setdefault("note", None)
+    kw.setdefault("collection", None)
+    kw.setdefault("back", None)
+    return render_template("shared.html", app_css=_app_css(), **kw)
+
+
 @app.route("/shared/<token>")
 def shared_view(token):
-    # PUBLIC — no @requires_auth. Cloudflare Access must be set to BYPASS /shared/*.
-    # Self-contained page (inlined CSS, note rendered server-side), so no other
-    # endpoint needs to be public and the note data never rides on an open API.
-    note = db.get_shared_note(token)
-    return render_template("shared.html", note=note, app_css=_app_css())
+    # PUBLIC — no @requires_auth. Cloudflare Access must BYPASS /shared/*.
+    # Self-contained page (inlined CSS, rendered server-side), so no other endpoint
+    # is public and the data never rides on an open API.
+    r = db.resolve_share(token)
+    if not r:
+        return _render_shared()
+    if r["kind"] == "note":
+        return _render_shared(note=r["note"])
+    return _render_shared(collection={"tag": r["tag"], "notes": r["notes"], "token": token})
+
+
+@app.route("/shared/<token>/<note_id>")
+def shared_note_in_tag(token, note_id):
+    # A single note viewed within a tag share (live membership check).
+    r = db.get_shared_tag_note(token, note_id)
+    if not r:
+        return _render_shared()
+    return _render_shared(note=r["note"], back={"token": token, "tag": r["tag"]})
 
 
 @app.route("/sw.js")

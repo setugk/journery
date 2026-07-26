@@ -18,7 +18,7 @@ def get_conn():
     return conn
 
 
-_SCHEMA_VERSION = 4
+_SCHEMA_VERSION = 5
 
 
 def init_db():
@@ -90,6 +90,20 @@ def init_db():
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_shares_note ON shares(note_id)")
             conn.execute("UPDATE schema_version SET version = 4")
+
+        if current < 5:
+            # Public "share a tag" links (tag-as-publish-set). Separate table so the
+            # note-shares table (with its NOT NULL note_id) is untouched.
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS tag_shares (
+                    token TEXT PRIMARY KEY,
+                    tag TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tagshares_tag ON tag_shares(tag)")
+            conn.execute("UPDATE schema_version SET version = 5")
 
     conn.close()
     purge_old_trash()
@@ -568,4 +582,71 @@ def purge_expired_shares():
     conn = get_conn()
     with conn:
         conn.execute("DELETE FROM shares WHERE expires_at IS NOT NULL AND expires_at < ?", (now(),))
+        conn.execute("DELETE FROM tag_shares WHERE expires_at IS NOT NULL AND expires_at < ?", (now(),))
     conn.close()
+
+
+# ── Public tag shares (tag-as-publish-set) ──────────────────────────────────────
+# One share per tag; token is public. Resolving a token returns the tag, and the
+# note set is computed LIVE (notes currently carrying that tag) — so adding the
+# tag to a note publishes it, removing it un-publishes.
+
+def get_tag_share(tag):
+    conn = get_conn()
+    row = conn.execute("SELECT * FROM tag_shares WHERE tag=?", (tag,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def set_tag_share(tag, expires_at):
+    conn = get_conn()
+    with conn:
+        row = conn.execute("SELECT token FROM tag_shares WHERE tag=?", (tag,)).fetchone()
+        if row:
+            token = row["token"]
+            conn.execute("UPDATE tag_shares SET expires_at=? WHERE token=?", (expires_at, token))
+        else:
+            token = secrets.token_urlsafe(16)
+            conn.execute(
+                "INSERT INTO tag_shares (token, tag, created_at, expires_at) VALUES (?,?,?,?)",
+                (token, tag, now(), expires_at),
+            )
+    conn.close()
+    return {"token": token, "expires_at": expires_at}
+
+
+def delete_tag_share(tag):
+    conn = get_conn()
+    with conn:
+        conn.execute("DELETE FROM tag_shares WHERE tag=?", (tag,))
+    conn.close()
+
+
+def resolve_share(token):
+    """Resolve a public token to its target, honoring expiry.
+       {"kind":"note","note":{...}} | {"kind":"tag","tag":str,"notes":[...]} | None"""
+    note = get_shared_note(token)
+    if note:
+        return {"kind": "note", "note": note}
+    conn = get_conn()
+    row = conn.execute("SELECT tag, expires_at FROM tag_shares WHERE token=?", (token,)).fetchone()
+    conn.close()
+    if row and not (row["expires_at"] and row["expires_at"] < now()):
+        return {"kind": "tag", "tag": row["tag"], "notes": get_notes(tag=row["tag"])}
+    return None
+
+
+def get_shared_tag_note(token, note_id):
+    """A single live note within a tag share — only if the token is a valid tag
+       share and the note currently carries that tag. Else None."""
+    conn = get_conn()
+    row = conn.execute("SELECT tag, expires_at FROM tag_shares WHERE token=?", (token,)).fetchone()
+    conn.close()
+    if not row or (row["expires_at"] and row["expires_at"] < now()):
+        return None
+    note = get_note(note_id)
+    if not note or note.get("deleted_at"):
+        return None
+    if row["tag"] not in (note.get("tags") or []):
+        return None
+    return {"note": note, "tag": row["tag"]}
