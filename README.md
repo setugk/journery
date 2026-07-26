@@ -105,6 +105,32 @@ docker run -d -p 5050:5000 -v ~/journery-data:/data \
 
 Put it behind a free [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) (~10 min) for a public URL like `journery.yourdomain.com` that works from any device. Add a Cloudflare Access policy (email OTP) for auth — no app-level login needed.
 
+### Sharing notes publicly (one setup step if you use an auth gate)
+
+Journery can turn any note — or a whole tag — into a **public link** anyone can read without signing in (a note's **⋯ → Share…**, or a tag view's **⋯ → Share tag**). Those links all live under the **`/shared/…`** path and render as self-contained pages; nothing else about your journal is exposed.
+
+**The catch:** if you've put Journery behind an auth layer (Cloudflare Access, Authelia, Authentik, basic auth, a reverse-proxy login…), that same gate will block the people you share with — they'll hit *your* sign-in wall instead of the note. So you have to **exempt the `/shared/*` path** from your auth, and only that path.
+
+**Cloudflare Access** (the most common setup): add a second Access application for **`yourdomain.com/shared/*`** with an **Action: Bypass** policy that includes **Everyone**, sitting alongside the main application that protects the rest of the site. That one rule is all it takes — leave it off and share links silently break; the app itself looks fine, so it's easy to miss.
+
+> Quick test: open one of your own share links in a private/incognito window. If the note loads without asking you to log in, you're set. If it shows a sign-in screen, the bypass isn't in place yet.
+
+Not using any auth gate (running open on a private network, or with just `JOURNERY_USER`/`JOURNERY_PASS`)? Nothing to do — share links work out of the box.
+
+#### Setting it up with an AI assistant
+
+Paste this to an AI coding/infra assistant that has access to your Cloudflare account or config:
+
+> I self-host **Journery** at `journery.MYDOMAIN.com`, protected by **Cloudflare Access** (email OTP). Journery has a public-sharing feature: it serves shareable, sign-in-free pages under the path **`/shared/*`**, and those must stay reachable by anyone with the link. Right now my Access policy also gates `/shared/*`, so recipients hit my login wall.
+> Please set up a **path-scoped bypass** so only `/shared/*` is public, while everything else stays protected:
+> 1. In Cloudflare Zero Trust → Access → Applications, add a **new self-hosted application** for the hostname `journery.MYDOMAIN.com` with the path **`/shared`** (covering `/shared/*`).
+> 2. Give it a single policy with **Action: Bypass** and Include: **Everyone**.
+> 3. Make sure this application is **evaluated before** (listed above / more specific than) my existing application that protects `journery.MYDOMAIN.com`, so the bypass wins for `/shared/*` only.
+> 4. Confirm the rest of the site still requires my email OTP, and tell me how to verify (e.g. open a `/shared/...` link in an incognito window — it should load with no login prompt).
+> Do not expose any path other than `/shared/*`.
+
+Using a different gate (Authelia, Authentik, NGINX/Traefik auth, etc.)? Same idea — allow `/shared/*` (and its sub-paths) through unauthenticated while keeping every other route protected.
+
 ## Stack
 
 Flask + SQLite backend, vanilla JS SPA frontend — no build step, no bundler, no CDN dependencies.
