@@ -7,7 +7,7 @@ import zipfile
 from html.parser import HTMLParser
 from functools import wraps
 from datetime import datetime, timezone, timedelta
-from flask import Flask, request, jsonify, render_template, Response
+from flask import Flask, request, jsonify, render_template, Response, redirect
 import db
 
 app = Flask(__name__)
@@ -26,7 +26,11 @@ JOURNERY_NAME   = os.environ.get("JOURNERY_NAME", "")
 # Demo mode: the browser stores all data locally (see static/demo.js); the server
 # DB is unused. Set DEMO_MODE=1 on the public demo instance only.
 DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
-APP_VERSION     = "1.29.4"
+# Cloudflare Web Analytics beacon token — demo instance only, to gauge demo
+# traffic. Never set this on prod/beta (self-hosted instances get no
+# analytics of any kind — see README's privacy promise). Empty = no beacon.
+CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
+APP_VERSION     = "1.29.10"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -52,7 +56,20 @@ def requires_auth(f):
 @app.route("/")
 @requires_auth
 def index():
-    return render_template("index.html", journery_name=JOURNERY_NAME, static_v=STATIC_VERSION, app_version=APP_VERSION, demo_mode=DEMO_MODE)
+    # One-time opt-out of demo analytics for this browser: visiting
+    # /?dnt=1 sets a year-long cookie and strips the query string; /?dnt=0
+    # clears it again (e.g. to test the demo as a real visitor would see it).
+    dnt_param = request.args.get("dnt")
+    if dnt_param in ("1", "0"):
+        resp = redirect(request.path)
+        if dnt_param == "1":
+            resp.set_cookie("journery_dnt", "1", max_age=365 * 24 * 3600, samesite="Lax")
+        else:
+            resp.delete_cookie("journery_dnt")
+        return resp
+    opted_out = request.cookies.get("journery_dnt") == "1"
+    beacon_token = "" if opted_out else CF_BEACON_TOKEN
+    return render_template("index.html", journery_name=JOURNERY_NAME, static_v=STATIC_VERSION, app_version=APP_VERSION, demo_mode=DEMO_MODE, cf_beacon_token=beacon_token)
 
 
 # ── Folders ───────────────────────────────────────────────────────────────────

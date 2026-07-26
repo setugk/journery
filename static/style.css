@@ -211,14 +211,21 @@ body {
   padding: 8px 8px max(8px, env(safe-area-inset-bottom)) 12px;
   border-top: 1px solid var(--divider);
 }
+.profile-menu-wrapper { position: relative; flex: 1; min-width: 0; }
 .sidebar-profile {
   display: flex; align-items: center; gap: 8px;
-  flex: 1; min-width: 0;
+  width: 100%; min-width: 0;
   background: none; border: none; padding: 4px; border-radius: 8px;
   font-family: inherit; text-align: left; cursor: pointer;
   transition: background 0.08s;
 }
 .sidebar-profile:hover { background: var(--surface); }
+/* Opens upward — the trigger sits at the very bottom of the sidebar, so a
+   downward .pane-dropdown (the default) would run off the viewport. ID selector
+   (not .profile-menu) so it beats .pane-dropdown regardless of source order. */
+#profile-menu { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; min-width: 200px; }
+#profile-menu button { display: flex; align-items: center; gap: 12px; }
+#profile-menu button svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-muted); }
 .profile-avatar {
   width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
@@ -431,6 +438,10 @@ body {
   text-overflow: ellipsis; white-space: nowrap;
 }
 .back-btn { display: none; }
+/* Up-one-level chevron: desktop only (mobile already has the drill-down
+   back-btn above); JS toggles .hidden based on the current folder's
+   parent_id, so a root-level folder shows no chevron. */
+#folder-up-btn.hidden { display: none; }
 
 .notes-header-actions { display: flex; align-items: center; gap: 0; flex-shrink: 0; }
 .pane-dropdown-wrapper { position: relative; }
@@ -1099,6 +1110,10 @@ body.note-view-mode .app { display: none; }
   transition: border-color 0.15s;
 }
 .modal-input:focus { border-color: var(--border-mid); }
+textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
+.feedback-contact-row { display: flex; gap: 8px; }
+.feedback-contact-row .modal-input { flex: 1; min-width: 0; }
+.feedback-hint { font-size: var(--fs-12); color: var(--text-muted); margin: -4px 0 12px; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 

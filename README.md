@@ -31,6 +31,8 @@ Make it yours with 20+ themes (Nord, Catppuccin, Gruvbox, Dracula, Solarized, an
 
 Kick the tyres at **[demo-journery.setugk.com](https://demo-journery.setugk.com)** — a full demo where everything is saved only in your browser (nothing shared, nothing stored on a server). When you're ready, host your own below.
 
+*(That demo page uses cookie-less Cloudflare Web Analytics so I can see how many people try it — just page views, nothing else. Your own self-hosted instance has zero analytics of any kind, ever; see the privacy note below.)*
+
 ## Getting started
 
 You own your data — it lives on hardware you control, and the Journery author never sees it or hosts it. Pick whichever path fits you.
@@ -130,6 +132,10 @@ Paste this to an AI coding/infra assistant that has access to your Cloudflare ac
 > Do not expose any path other than `/shared/*`.
 
 Using a different gate (Authelia, Authentik, NGINX/Traefik auth, etc.)? Same idea — allow `/shared/*` (and its sub-paths) through unauthenticated while keeping every other route protected.
+
+### Report a bug or send feedback
+
+Your profile chip (bottom of the sidebar) has a **Report bug / Feedback** option. Whatever you type there — plus the app version and instance name, nothing else — is sent straight to the maintainer to help improve Journery. **Your notes are never included and never touched.** This is the one thing in Journery that talks to an external server by default (everything else is fully local); if you'd rather it didn't, just don't use that menu option — nothing else changes.
 
 ## Stack
 

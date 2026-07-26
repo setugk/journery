@@ -340,7 +340,9 @@ const CHANGELOG = [
     "Share a whole tag — open a tag, tap the share icon, and get one public link to every note with that tag (a read-only index anyone can browse). Add the tag to a note to publish it, remove it to un-publish. Expiry + revoke work just like note links.",
     "Cleaner, more balanced Share dialog",
     "Tidier tag view — Share, Sort, and Select now live in a single ⋯ menu, with “+” always at hand",
-    "Cleaner sidebar — the top row is now just Journery + New note / New folder / Settings, and your profile and the collapse button moved to a tidy footer at the bottom (the app version is in Settings → General)",
+    "Cleaner sidebar — the top row is now just Journery + New note / New folder, and your profile at the bottom now opens Settings (the app version is in Settings → General)",
+    "A back chevron next to a nested folder's name jumps you up one level, instead of hunting for the parent in the sidebar tree",
+    "Report a bug or send feedback right from the app — tap your profile at the bottom of the sidebar. Optionally leave your name/email if you'd like a reply",
     "Bug fixes & improvements",
   ]},
   { version: "1.28", date: "July 2026", changes: [
@@ -625,8 +627,67 @@ function renderSettingsTags() {
   });
 }
 
-$("settings-btn").addEventListener("click", openSettings);
-$("profile-btn").addEventListener("click", openSettings);
+// ── Profile menu (Settings, Report bug/Feedback) ─────────────────────────────
+const profileMenu = $("profile-menu");
+$("profile-btn").addEventListener("click", e => {
+  e.stopPropagation();
+  profileMenu.classList.toggle("hidden");
+});
+$("profile-menu-settings").addEventListener("click", () => {
+  profileMenu.classList.add("hidden");
+  openSettings();
+});
+$("profile-menu-feedback").addEventListener("click", () => {
+  profileMenu.classList.add("hidden");
+  openFeedbackModal();
+});
+document.addEventListener("click", () => profileMenu.classList.add("hidden"));
+
+// ── Report bug / feedback modal ───────────────────────────────────────────────
+// Always goes to the real collector, even in demo mode — this is a separate,
+// deliberately cross-origin call, not part of the app's own data (api()/demoApi
+// would wrongly route it through the demo's local-storage shim).
+const FEEDBACK_ENDPOINT = "https://feedback.setugk.com/api/feedback";
+
+function openFeedbackModal() {
+  $("feedback-message").value = "";
+  $("feedback-type").value = "bug";
+  // Remember name/email across submissions (localStorage) so a repeat reporter
+  // isn't retyping contact info every time — still fully optional either way.
+  $("feedback-name").value = localStorage.getItem("feedbackName") || "";
+  $("feedback-email").value = localStorage.getItem("feedbackEmail") || "";
+  $("feedback-modal").classList.remove("hidden");
+  $("feedback-message").focus();
+}
+function closeFeedbackModal() {
+  $("feedback-modal").classList.add("hidden");
+}
+$("feedback-modal-close").addEventListener("click", closeFeedbackModal);
+$("feedback-cancel-btn").addEventListener("click", closeFeedbackModal);
+$("feedback-modal").addEventListener("click", e => { if (e.target === $("feedback-modal")) closeFeedbackModal(); });
+
+$("feedback-send-btn").addEventListener("click", async () => {
+  const message = $("feedback-message").value.trim();
+  const type = $("feedback-type").value;
+  const name = $("feedback-name").value.trim();
+  const email = $("feedback-email").value.trim();
+  if (!message) return;
+  localStorage.setItem("feedbackName", name);
+  localStorage.setItem("feedbackEmail", email);
+  closeFeedbackModal();
+  try {
+    const res = await fetch(FEEDBACK_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, type, name, email, app: "journery", version: window.APP_VERSION, instance: window.JOURNERY_NAME }),
+    });
+    if (!res.ok) throw new Error("bad response");
+    showToast("Thanks — feedback sent!");
+  } catch {
+    showToast("Couldn't send feedback — check your connection");
+  }
+});
+profileMenu.addEventListener("click", e => e.stopPropagation());
 $("settings-folders-toggle").addEventListener("click", () => {
   state.showFolders = !state.showFolders;
   localStorage.setItem("showFolders", state.showFolders);
@@ -1078,6 +1139,21 @@ function navigateToFolder(folder, pushHistory = false) {
   notesList.scrollTop = 0;
 }
 
+// Shows a "go to parent folder" chevron next to the pane title — only for a
+// nested folder (has a parent_id) and only on desktop (mobile's drill-down
+// back-btn already covers stepping back out of the notes pane).
+function updateFolderUpBtn() {
+  const btn = $("folder-up-btn");
+  const folder = state.context.type === "folder" ? state.folders.find(f => f.id === state.context.id) : null;
+  btn.classList.toggle("hidden", isMobile() || !folder || !folder.parent_id);
+}
+
+$("folder-up-btn").addEventListener("click", () => {
+  const folder = state.folders.find(f => f.id === state.context.id);
+  const parent = folder && folder.parent_id && state.folders.find(f => f.id === folder.parent_id);
+  if (parent) navigateToFolder(parent);
+});
+
 function navigateToTag(tagName) {
   state.navHistory = [];
   state.context = { type: "tag", id: tagName, label: "#" + tagName };
@@ -1362,6 +1438,7 @@ function renderNotesList() {
   notesPaneEl.dataset.ctx = state.context.type === "trash" ? "trash" : "";
   // Tag view collapses sort/select/share into the overflow menu.
   notesPaneEl.classList.toggle("tag-view", state.context.type === "tag");
+  updateFolderUpBtn();
 
   // ── Trash context ──────────────────────────────────────────────────────
   if (state.context.type === "trash") {
