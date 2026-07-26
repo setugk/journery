@@ -226,6 +226,7 @@ body {
 #profile-menu { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; min-width: 200px; }
 #profile-menu button { display: flex; align-items: center; gap: 12px; }
 #profile-menu button svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-muted); }
+.profile-menu-version { padding: 6px 12px 2px; font-size: var(--fs-11); color: var(--text-faint); }
 .profile-avatar {
   width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
@@ -1111,8 +1112,6 @@ body.note-view-mode .app { display: none; }
 }
 .modal-input:focus { border-color: var(--border-mid); }
 textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
-.feedback-contact-row { display: flex; gap: 8px; }
-.feedback-contact-row .modal-input { flex: 1; min-width: 0; }
 .feedback-hint { font-size: var(--fs-12); color: var(--text-muted); margin: -4px 0 12px; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
