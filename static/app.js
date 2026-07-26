@@ -340,6 +340,7 @@ const CHANGELOG = [
     "Share a whole tag — open a tag, tap the share icon, and get one public link to every note with that tag (a read-only index anyone can browse). Add the tag to a note to publish it, remove it to un-publish. Expiry + revoke work just like note links.",
     "Cleaner, more balanced Share dialog",
     "Tidier tag view — Share, Sort, and Select now live in a single ⋯ menu, with “+” always at hand",
+    "Cleaner sidebar — the top row is now just Journery + New note / New folder / Settings, and your profile and the collapse button moved to a tidy footer at the bottom (the app version is in Settings → General)",
     "Bug fixes & improvements",
   ]},
   { version: "1.28", date: "July 2026", changes: [
@@ -625,6 +626,7 @@ function renderSettingsTags() {
 }
 
 $("settings-btn").addEventListener("click", openSettings);
+$("profile-btn").addEventListener("click", openSettings);
 $("settings-folders-toggle").addEventListener("click", () => {
   state.showFolders = !state.showFolders;
   localStorage.setItem("showFolders", state.showFolders);
@@ -2868,7 +2870,7 @@ async function openShareSheet(target) {
   const isTag = target.kind === "tag";
   $("share-modal-title").textContent = isTag ? "Share tag" : "Share note";
   $("share-hint").textContent = isTag
-    ? `Anyone with the link can read every note tagged #${target.tag} — no sign-in needed. New notes you add this tag to appear automatically; remove the tag to un-share.`
+    ? `Anyone with the link can read every note tagged #${target.tag} — no sign-in needed. Tagging a note adds it to the shared list; removing the tag takes it off.`
     : "Anyone with the link can read this note — no sign-in needed.";
   $("share-expiry").value = "";
   try { renderShareSheet(await api("GET", shareApiPath())); }
