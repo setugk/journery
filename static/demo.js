@@ -143,6 +143,9 @@
     db = seed();
     save();
   };
+  // Lets app.js block new-note creation before the editor even opens, so
+  // nobody loses typed content to a limit hit mid-save.
+  window.demoNoteCount = () => liveNotes().length;
 
   // ── Store operations (mirror db.py) ─────────────────────────────────────────
   const liveNotes = () => db.notes.filter((n) => !n.deleted_at);

@@ -63,6 +63,7 @@ def init_db():
             """)
             if current == 0:
                 conn.execute("INSERT INTO schema_version VALUES (1)")
+                _insert_welcome_note(conn)
             else:
                 conn.execute("UPDATE schema_version SET version = 1")
 
@@ -116,6 +117,27 @@ def now():
 
 def new_id():
     return str(uuid.uuid4())
+
+
+# A one-time welcome note, inserted only into a genuinely fresh database (see
+# the `current == 0` branch in init_db() — never touches an existing install
+# on upgrade). Deletable like any other note; nothing else about it is special.
+_WELCOME_NOTE_BODY = """Hey! Welcome to Journery, and thanks a lot for trying this app.<br><br>
+I'm a product designer &mdash; I'd never built a full-stack product before, because I didn't know how to write the code one needs. But with AI, it's now possible to bring ideas like this to life.<br><br>
+I built Journery because I believe in privacy and ownership of your data. What you produce should be in your control, and you should decide who can access or use it &mdash; not a company you pay to use a product, that then also uses your data to train its models on top of that. If a company wants to use your data, they should be paying <b>you</b>. Otherwise, it's not a fair deal.<br><br>
+Journery is my attempt at solving that. It's privacy-first: you choose where your data lives &mdash; your own server, a NAS, a spare computer, a cheap VPS, or a managed option like PikaPods if you don't want to run a server yourself. Once it's set up, Journery can back your data up on a schedule you choose, and you can export everything &mdash; full metadata included &mdash; any time you want. Because your data, just like the money in your bank account, belongs to you.<br><br>
+Privacy and security aren't all Journery has to offer, though. You get instant sync across every device, shareable links, a fully customizable look with themes, flexible ways to organize your notes, and more.<br><br>
+Of course, this isn't perfect &mdash; far from it, in fact. And I want to keep making it better. So please don't hesitate to tell me if something isn't working, or if a feature's missing &mdash; there's a &ldquo;Report bug / Feedback&rdquo; option under your profile at the bottom of the sidebar, and I read every single one.<br><br>
+Thanks! 🙏<br><br>
+&mdash; Setu"""
+
+
+def _insert_welcome_note(conn):
+    ts = now()
+    conn.execute(
+        "INSERT INTO notes (id, title, body, folder_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        (new_id(), "A note from Setu 👋", _WELCOME_NOTE_BODY, None, ts, ts),
+    )
 
 
 # ── Folders ──────────────────────────────────────────────────────────────────

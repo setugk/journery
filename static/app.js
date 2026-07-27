@@ -3005,7 +3005,16 @@ $("editor-save-btn").addEventListener("click", async () => {
 
 // ── New note ──────────────────────────────────────────────────────────────────
 
+// Demo-only cap so it stays a place to try the app, not somewhere to build a
+// real journal — checked before the editor opens, so no typed content is ever
+// lost to a limit hit mid-save.
+const DEMO_NOTE_LIMIT = 30;
+
 async function newNote() {
+  if (window.DEMO_MODE && window.demoNoteCount && window.demoNoteCount() >= DEMO_NOTE_LIMIT) {
+    showToast(`Demo is capped at ${DEMO_NOTE_LIMIT} notes — export or self-host to keep writing`);
+    return;
+  }
   if (state.dirty) await saveNoteNow();
   const folderId = state.context.type === "folder" ? state.context.id : null;
   const initialTags = state.context.type === "tag" ? [state.context.id] : [];
