@@ -343,6 +343,7 @@ const CHANGELOG = [
     "Cleaner sidebar — the top row is now just Journery + New note / New folder, and your profile at the bottom now opens Settings (the app version is in Settings → General)",
     "A back chevron next to a nested folder's name jumps you up one level, instead of hunting for the parent in the sidebar tree",
     "Report a bug or send feedback right from the app — tap your profile at the bottom of the sidebar. Optionally leave your name/email if you'd like a reply",
+    "A chevron next to your name at the bottom of the sidebar makes it clearer that it opens Settings and Feedback",
     "Bug fixes & improvements",
   ]},
   { version: "1.28", date: "July 2026", changes: [
@@ -629,19 +630,26 @@ function renderSettingsTags() {
 
 // ── Profile menu (Settings, Report bug/Feedback) ─────────────────────────────
 const profileMenu = $("profile-menu");
+const profileBtn  = $("profile-btn");
+// Chevron flips to point down while open (mirrors .section-chev.open elsewhere)
+// — up = "opens above", down = "click to close".
+function setProfileMenuOpen(open) {
+  profileMenu.classList.toggle("hidden", !open);
+  profileBtn.classList.toggle("menu-open", open);
+}
 $("profile-btn").addEventListener("click", e => {
   e.stopPropagation();
-  profileMenu.classList.toggle("hidden");
+  setProfileMenuOpen(profileMenu.classList.contains("hidden"));
 });
 $("profile-menu-settings").addEventListener("click", () => {
-  profileMenu.classList.add("hidden");
+  setProfileMenuOpen(false);
   openSettings();
 });
 $("profile-menu-feedback").addEventListener("click", () => {
-  profileMenu.classList.add("hidden");
+  setProfileMenuOpen(false);
   openFeedbackModal();
 });
-document.addEventListener("click", () => profileMenu.classList.add("hidden"));
+document.addEventListener("click", () => setProfileMenuOpen(false));
 
 // ── Report bug / feedback modal ───────────────────────────────────────────────
 // Always goes to the real collector, even in demo mode — this is a separate,
@@ -3880,5 +3888,15 @@ if (shareNoteId) {
   // Default the notes panel to Recents on load (matches state.context above).
   paneTitle.textContent = recentsPaneTitle();
   setActiveNav(navRecents);
-  loadAll();
+  loadAll().then(() => {
+    // Demo, desktop only: open the intro note instead of the blank "select a
+    // note" state — that empty state only shows in the 3-pane desktop layout
+    // (mobile starts on the sidebar view, so there's nothing blank to fill).
+    // Falls back to the normal empty state if the note's been deleted/reset.
+    if (window.DEMO_MODE && !isMobile()) {
+      api("GET", "/api/notes/welcome").then(note => {
+        if (note && !note.deleted_at) openNote(note);
+      }).catch(() => {});
+    }
+  });
 }

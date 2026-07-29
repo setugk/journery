@@ -16,6 +16,10 @@
   const uid = () => (crypto.randomUUID ? crypto.randomUUID()
     : "id-" + Date.now() + "-" + Math.random().toString(16).slice(2));
   const now = () => new Date().toISOString();
+  // Anchored to seed-time (not a fixed calendar date) so the getting-started
+  // notes always land inside "Recents" — a fixed date silently drifts out of
+  // that filter as real time passes, however far in the future this runs.
+  const recent = (minutesAgo) => new Date(Date.now() - minutesAgo * 60000).toISOString();
   const normTags = (tags) =>
     [...new Set((tags || []).map((t) => String(t).trim().toLowerCase()).filter(Boolean))];
   const cloneNote = (n) => ({ ...n, tags: [...(n.tags || [])] });
@@ -24,11 +28,13 @@
   function seed() {
     const journal = { id: uid(), name: "Journal", parent_id: null, created_at: now(), updated_at: now() };
     const ideas   = { id: uid(), name: "Ideas",   parent_id: null, created_at: now(), updated_at: now() };
-    const mk = (title, body, folder_id, tags, created_at) => ({
-      id: uid(), title, body, folder_id, created_at, updated_at: created_at,
+    const mk = (title, body, folder_id, tags, created_at, id) => ({
+      id: id || uid(), title, body, folder_id, created_at, updated_at: created_at,
       deleted_at: null, tags: normTags(tags),
     });
     const notes = [
+      // Fixed id (not a random uid()) so app.js can open this specific note by
+      // id on load, instead of the blank "select a note" state.
       mk("Start here — what is Journery? 👋",
          "Journery is a calm home for your notes and journal.<br><br>" +
          "Write freely, then organise however you think:" +
@@ -38,7 +44,7 @@
          "It runs in any browser, syncs across your devices, and installs as an app on your phone.<br><br>" +
          "These <b>#getting-started</b> notes walk through the main features — tap the tag below to see them all, in order.<br><br>" +
          "About this demo: everything you do is saved only in <b>your</b> browser — nothing is sent anywhere or shared with anyone. Want a clean slate? Open <b>Settings → Data → Reset demo data</b>.",
-         null, ["getting-started"], "2026-07-01T09:00:00.000Z"),
+         null, ["getting-started"], recent(0), "welcome"),
       mk("Writing notes & formatting",
          "Give a note a <b>title</b> at the top, then just start writing below.<br><br>" +
          "Select any text to pop up a <b>formatting bar</b> — bold, italic, underline, strikethrough, code, and lists.<br><br>" +
@@ -47,38 +53,38 @@
          "<li><b>⌘⇧X</b> — strikethrough</li>" +
          "<li><b>⌘⇧C</b> — code</li></ul>" +
          "Everything saves automatically as you type — no save button needed.",
-         null, ["getting-started"], "2026-07-01T08:55:00.000Z"),
+         null, ["getting-started"], recent(5)),
       mk("Tags",
          "Tags keep related notes together without moving them into folders.<br><br>" +
          "Under the title, tap <b>+ add tag</b> and start typing — matching tags autocomplete as you go, and you can add as many as you like.<br><br>" +
          "Tap any tag to see every note that has it. Use a tag a lot? <b>Pin</b> it to the top of the sidebar with the pin icon, so it's always one tap away.",
-         null, ["getting-started"], "2026-07-01T08:50:00.000Z"),
+         null, ["getting-started"], recent(10)),
       mk("Folders",
          "Prefer folders? Journery has those too — and they nest as deep as you want.<br><br>" +
          "Folders stay hidden until you turn them on: open <b>Settings → Sidebar → Show Folders</b>. This demo already has a couple (Journal and Ideas) to poke around in.<br><br>" +
          "Create subfolders, move notes between them, and rearrange everything from the folder menu.",
-         null, ["getting-started"], "2026-07-01T08:45:00.000Z"),
+         null, ["getting-started"], recent(15)),
       mk("Finding your notes",
          "A few ways to get back to any note:" +
          "<ul><li><b>Search</b> — the box at the top of the sidebar searches titles and text</li>" +
          "<li><b>Recents</b> — your latest notes; set the window to a day, week, or month in Settings</li>" +
          "<li><b>Timeline</b> — browse everything by year</li></ul>" +
          "You can also change the sort order from the notes-list header (newest, oldest, recently edited).",
-         null, ["getting-started"], "2026-07-01T08:40:00.000Z"),
+         null, ["getting-started"], recent(20)),
       mk("Sync across your devices",
          "Journery keeps everything in one place, everywhere.<br><br>" +
          "Open it on your laptop, phone, and tablet — write on one and it turns up on the others within seconds, automatically. No manual sync, no export/import shuffle. It even updates live between browser tabs.<br><br>" +
          "(This is a browser-only demo, so each device keeps its own copy here — real cross-device sync kicks in once you're running your own Journery. See \"Host your own Journery\" below.)",
-         null, ["getting-started"], "2026-07-01T08:35:00.000Z"),
+         null, ["getting-started"], recent(25)),
       mk("Trash",
          "Deleting a note doesn't lose it right away.<br><br>" +
          "Deleted notes go to the <b>Trash</b>, where you can <b>restore</b> them anytime. They're cleared automatically after 30 days.<br><br>" +
          "Try it: delete this note, then open Trash and bring it back.",
-         null, ["getting-started"], "2026-07-01T08:30:00.000Z"),
+         null, ["getting-started"], recent(30)),
       mk("Themes",
          "Make Journery yours. Open <b>Settings → Themes</b> for 20+ built-in looks — light and dark, from Solarized to Dracula to Everforest.<br><br>" +
          "Picking a theme sets everything at once, including light or dark automatically. You can even import your own theme as a JSON file.",
-         null, ["getting-started"], "2026-07-01T08:25:00.000Z"),
+         null, ["getting-started"], recent(35)),
       mk("Install it as an app",
          "Journery works as a home-screen app (PWA) — full screen, no browser bar.<br><br>" +
          "<b>On iPhone / iPad (Safari):</b>" +
@@ -90,7 +96,7 @@
          "<li>Tap \"Add to Home screen\" (or \"Install app\")</li>" +
          "<li>Tap Install / Add</li></ul>" +
          "Tip: the installed app keeps its own separate copy, so it may start fresh from the sample notes.",
-         null, ["getting-started"], "2026-07-01T08:20:00.000Z"),
+         null, ["getting-started"], recent(40)),
       mk("Host your own Journery",
          "Like it? Journery is free and open-source — run your own copy so your notes live on <b>your</b> hardware, never someone else's server.<br><br>" +
          "It's a single command with Docker, and:" +
@@ -98,7 +104,7 @@
          "<li>Add a password, or put it behind your own login</li>" +
          "<li>Then reach it from every device, all in sync</li></ul>" +
          "Grab it and the step-by-step setup at <b>github.com/setugk/journery</b>.",
-         null, ["getting-started"], "2026-07-01T08:15:00.000Z"),
+         null, ["getting-started"], recent(45)),
       mk("Morning pages",
          "Slow start today. Coffee, then twenty minutes of just writing whatever came to mind.\n\nNoticed I think more clearly on paper than on screen. Worth keeping this up.",
          journal.id, [], "2026-06-30T07:30:00.000Z"),

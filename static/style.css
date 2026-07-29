@@ -220,6 +220,18 @@ body {
   transition: background 0.08s;
 }
 .sidebar-profile:hover { background: var(--surface); }
+/* Discoverability: without this there's no visible signal the profile chip
+   opens a menu (hover-only affordance is invisible on touch). Points up,
+   matching the menu's actual opening direction — the one spot in the sidebar
+   that reveals upward instead of down. No extra margin-left — the parent's
+   flex gap (8px) already places it right next to the name, same rhythm as
+   the avatar-to-name gap. A 1px top nudge corrects an optical illusion: the
+   chevron's bounding box is mathematically centered with the text (verified
+   via getBoundingClientRect — both land on the same Y), but a "^" shape's
+   visual weight sits near its peak, which reads as sitting too high next to
+   text without this. */
+.profile-chevron { color: var(--text-muted); flex-shrink: 0; position: relative; top: 1px; transition: transform 0.15s; }
+.sidebar-profile.menu-open .profile-chevron { transform: rotate(180deg); }
 /* Opens upward — the trigger sits at the very bottom of the sidebar, so a
    downward .pane-dropdown (the default) would run off the viewport. ID selector
    (not .profile-menu) so it beats .pane-dropdown regardless of source order. */
