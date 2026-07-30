@@ -36,6 +36,8 @@ const state = {
   selectedNoteIds: new Set(),
   trashCount: 0,
   tagTrashedNotes: [],
+  // Collapsed by default — a tag's trashed notes are noise most of the time.
+  tagTrashExpanded: localStorage.getItem("tagTrashExpanded") === "true",
 };
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
@@ -223,6 +225,82 @@ const BUILT_IN_THEMES = [
     id: "paper", name: "Paper", dark: false,
     tokens: { "--bg":"#F5F0E8","--surface":"#FAF6F0","--surface-2":"#EDE8DF","--border":"#D8D0C4","--border-mid":"#C8BDB0","--divider":"#E8E2D8","--text":"#2C2414","--text-2":"#4A3F30","--text-muted":"#7A6F60","--text-faint":"#A89F90","--accent":"#6B4C2A","--accent-fg":"#FAF6F0","--danger":"#B02020","--danger-bg":"#F9E8E8" },
   },
+  {
+    id: "vitesse-dark", name: "Vitesse Dark", dark: true,
+    tokens: { "--bg":"#121212","--surface":"#181818","--surface-2":"#1E1E1E","--border":"#2B2B2B","--border-mid":"#3C3C3C","--divider":"#1C1C1C","--text":"#DBD7CA","--text-2":"#BFBCAE","--text-muted":"#6E6B64","--text-faint":"#4A4844","--accent":"#4D9375","--accent-fg":"#121212","--danger":"#CB7676","--danger-bg":"#2A1414" },
+  },
+  {
+    id: "vitesse-light", name: "Vitesse Light", dark: false,
+    tokens: { "--bg":"#FFFFFF","--surface":"#F7F7F7","--surface-2":"#EFEFEF","--border":"#E4E4E4","--border-mid":"#D0D0D0","--divider":"#ECECEC","--text":"#393A34","--text-2":"#5C5E57","--text-muted":"#999999","--text-faint":"#C4C4C4","--accent":"#1C6B48","--accent-fg":"#FFFFFF","--danger":"#AB5959","--danger-bg":"#FBE9E9" },
+  },
+  {
+    id: "zenburn", name: "Zenburn", dark: true,
+    tokens: { "--bg":"#3F3F3F","--surface":"#4A4A4A","--surface-2":"#464646","--border":"#5A5A5A","--border-mid":"#6A6A6A","--divider":"#4D4D4D","--text":"#DCDCCC","--text-2":"#C4C4BC","--text-muted":"#8A8A7A","--text-faint":"#6A6A5A","--accent":"#7F9F7F","--accent-fg":"#1A1A1A","--danger":"#CC9393","--danger-bg":"#2A1A1A" },
+  },
+  {
+    id: "horizon-dark", name: "Horizon Dark", dark: true,
+    tokens: { "--bg":"#1C1E26","--surface":"#232530","--surface-2":"#202230","--border":"#2E303E","--border-mid":"#3E4051","--divider":"#24252F","--text":"#CBCED0","--text-2":"#B3B8BD","--text-muted":"#6C6F93","--text-faint":"#454866","--accent":"#E95678","--accent-fg":"#1C1E26","--danger":"#E95678","--danger-bg":"#2D1520" },
+  },
+  {
+    id: "synthwave-84", name: "Synthwave '84", dark: true,
+    tokens: { "--bg":"#262335","--surface":"#2A2139","--surface-2":"#241F31","--border":"#3B3352","--border-mid":"#4A4368","--divider":"#2D2640","--text":"#F4EEE4","--text-2":"#DCD3E8","--text-muted":"#848BBD","--text-faint":"#4D4A6B","--accent":"#FF7EDB","--accent-fg":"#262335","--danger":"#FE4450","--danger-bg":"#2D1018" },
+  },
+  {
+    id: "cobalt2", name: "Cobalt2", dark: true,
+    tokens: { "--bg":"#193549","--surface":"#1F455E","--surface-2":"#15303F","--border":"#2C5570","--border-mid":"#3D6A86","--divider":"#1C3D52","--text":"#FFFFFF","--text-2":"#D6E3EA","--text-muted":"#7FA8BD","--text-faint":"#4D7385","--accent":"#FFC600","--accent-fg":"#193549","--danger":"#FF628C","--danger-bg":"#2D1420" },
+  },
+  {
+    id: "material-ocean", name: "Material Ocean", dark: true,
+    tokens: { "--bg":"#0F111A","--surface":"#14161F","--surface-2":"#10121A","--border":"#1F222D","--border-mid":"#2C2F3D","--divider":"#171923","--text":"#A6ACCD","--text-2":"#8F93A2","--text-muted":"#4B526D","--text-faint":"#33374A","--accent":"#82AAFF","--accent-fg":"#0F111A","--danger":"#FF5370","--danger-bg":"#2A1018" },
+  },
+  {
+    id: "panda", name: "Panda", dark: true,
+    tokens: { "--bg":"#292A2B","--surface":"#2F3031","--surface-2":"#2C2D2E","--border":"#3E4041","--border-mid":"#4E5052","--divider":"#313233","--text":"#E6E6E6","--text-2":"#CFCFCF","--text-muted":"#676B79","--text-faint":"#45484F","--accent":"#19F9D8","--accent-fg":"#292A2B","--danger":"#FF4B82","--danger-bg":"#2D1420" },
+  },
+  {
+    id: "andromeda", name: "Andromeda", dark: true,
+    tokens: { "--bg":"#23262E","--surface":"#282B35","--surface-2":"#24272F","--border":"#333644","--border-mid":"#454858","--divider":"#262933","--text":"#D5CED9","--text-2":"#C1B8C9","--text-muted":"#6B6D7C","--text-faint":"#46485A","--accent":"#C74DED","--accent-fg":"#23262E","--danger":"#EE5D43","--danger-bg":"#2A1310" },
+  },
+  {
+    id: "iceberg-dark", name: "Iceberg Dark", dark: true,
+    tokens: { "--bg":"#161821","--surface":"#1A1C25","--surface-2":"#191B24","--border":"#272932","--border-mid":"#363946","--divider":"#1C1E27","--text":"#C6C8D1","--text-2":"#B4B6BF","--text-muted":"#6B7089","--text-faint":"#444A63","--accent":"#84A0C6","--accent-fg":"#161821","--danger":"#E27878","--danger-bg":"#281515" },
+  },
+  {
+    id: "iceberg-light", name: "Iceberg Light", dark: false,
+    tokens: { "--bg":"#E8E9EC","--surface":"#F1F2F5","--surface-2":"#DCDEE3","--border":"#CDCFD7","--border-mid":"#B8BAC4","--divider":"#DCDEE3","--text":"#33374C","--text-2":"#4B5066","--text-muted":"#6B708A","--text-faint":"#9A9DB0","--accent":"#2D539E","--accent-fg":"#FFFFFF","--danger":"#CC517A","--danger-bg":"#F7E1EA" },
+  },
+  {
+    id: "oceanic-next", name: "Oceanic Next", dark: true,
+    tokens: { "--bg":"#1B2B34","--surface":"#22333C","--surface-2":"#1E2E37","--border":"#2C3E47","--border-mid":"#3D5058","--divider":"#22323B","--text":"#CDD3DE","--text-2":"#C0C5CE","--text-muted":"#65737E","--text-faint":"#4A5A63","--accent":"#6699CC","--accent-fg":"#1B2B34","--danger":"#EC5F67","--danger-bg":"#2A1416" },
+  },
+  {
+    id: "base16-dark", name: "Base16 Dark", dark: true,
+    tokens: { "--bg":"#181818","--surface":"#1E1E1E","--surface-2":"#1A1A1A","--border":"#282828","--border-mid":"#383838","--divider":"#1C1C1C","--text":"#D8D8D8","--text-2":"#C0C0C0","--text-muted":"#6A6A6A","--text-faint":"#454545","--accent":"#7CAFC2","--accent-fg":"#181818","--danger":"#AB4642","--danger-bg":"#2A1615" },
+  },
+  {
+    id: "base16-light", name: "Base16 Light", dark: false,
+    tokens: { "--bg":"#F8F8F8","--surface":"#FFFFFF","--surface-2":"#E8E8E8","--border":"#D8D8D8","--border-mid":"#C0C0C0","--divider":"#E8E8E8","--text":"#181818","--text-2":"#383838","--text-muted":"#6A6A6A","--text-faint":"#A0A0A0","--accent":"#7CAFC2","--accent-fg":"#FFFFFF","--danger":"#AB4642","--danger-bg":"#F6E5E4" },
+  },
+  {
+    id: "spacemacs-dark", name: "Spacemacs Dark", dark: true,
+    tokens: { "--bg":"#292B2E","--surface":"#2F3136","--surface-2":"#2B2D31","--border":"#3C3F44","--border-mid":"#4C5057","--divider":"#2E3034","--text":"#B2B2B2","--text-2":"#9CA0A4","--text-muted":"#5C5F61","--text-faint":"#404244","--accent":"#4F97D7","--accent-fg":"#292B2E","--danger":"#F2241F","--danger-bg":"#2A1210" },
+  },
+  {
+    id: "moonlight", name: "Moonlight", dark: true,
+    tokens: { "--bg":"#212337","--surface":"#272A41","--surface-2":"#23263A","--border":"#333652","--border-mid":"#444869","--divider":"#262940","--text":"#C8D3F5","--text-2":"#B4C2F0","--text-muted":"#636DA6","--text-faint":"#3F4573","--accent":"#82AAFF","--accent-fg":"#212337","--danger":"#FF757F","--danger-bg":"#2D151C" },
+  },
+  {
+    id: "aura", name: "Aura", dark: true,
+    tokens: { "--bg":"#15141B","--surface":"#1A1A23","--surface-2":"#17161E","--border":"#26242F","--border-mid":"#37343F","--divider":"#1C1B24","--text":"#EDECEE","--text-2":"#CDC5E0","--text-muted":"#6D6D7D","--text-faint":"#46424F","--accent":"#A277FF","--accent-fg":"#15141B","--danger":"#F96363","--danger-bg":"#2A1416" },
+  },
+  {
+    id: "sonokai", name: "Sonokai", dark: true,
+    tokens: { "--bg":"#2C2E34","--surface":"#33353B","--surface-2":"#2F3136","--border":"#3F4147","--border-mid":"#4F5157","--divider":"#313337","--text":"#E2E2E3","--text-2":"#C9C9CA","--text-muted":"#6D6F76","--text-faint":"#45474E","--accent":"#9ED072","--accent-fg":"#2C2E34","--danger":"#FC5D7C","--danger-bg":"#2D1420" },
+  },
+  {
+    id: "rose-pine-moon", name: "Rosé Pine Moon", dark: true,
+    tokens: { "--bg":"#232136","--surface":"#2A273F","--surface-2":"#26243A","--border":"#393552","--border-mid":"#44415A","--divider":"#2A283E","--text":"#E0DEF4","--text-2":"#C7C3E0","--text-muted":"#908CAA","--text-faint":"#6E6A86","--accent":"#EA9A97","--accent-fg":"#232136","--danger":"#EB6F92","--danger-bg":"#2D1A22" },
+  },
 ];
 
 let activeTheme = null;  // null = default (dark mode toggle controls appearance)
@@ -344,6 +422,13 @@ const CHANGELOG = [
     "A back chevron next to a nested folder's name jumps you up one level, instead of hunting for the parent in the sidebar tree",
     "Report a bug or send feedback right from the app — tap your profile at the bottom of the sidebar. Optionally leave your name/email if you'd like a reply",
     "A chevron next to your name at the bottom of the sidebar makes it clearer that it opens Settings and Feedback",
+    "A tag's trashed notes now collapse under an “In Trash” section instead of always showing — tap to expand",
+    "Fixed: creating a new note right after viewing a trashed one no longer left the editor stuck read-only",
+    "Settings no longer stretches edge-to-edge on wide screens, and Themes now shows a proper grid of wider cards instead of a single narrow column",
+    "19 new themes — Vitesse, Synthwave '84, Cobalt2, Iceberg, Andromeda, Sonokai, Rosé Pine Moon, and more",
+    "Pasting a URL into a note now makes it a real, clickable link automatically",
+    "The sidebar now clearly highlights whatever you have open — a tag, folder, year, All Notes, or Trash — in your theme's accent color",
+    "Fixed: Cmd/Ctrl+Z in a note could remove nothing, or several words at once, instead of just the last thing you typed — undo/redo now behaves predictably (word by word, and Cmd/Ctrl+Shift+Z to redo)",
     "Bug fixes & improvements",
   ]},
   { version: "1.28", date: "July 2026", changes: [
@@ -1551,22 +1636,38 @@ function renderNotesList() {
   }).join("");
 
   if (state.tagTrashedNotes.length) {
-    html += `<div class="notes-section-label notes-trash-divider">In Trash</div>`;
-    html += state.tagTrashedNotes.map(n => {
-      const preview = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
-      return `
-        <div class="note-item note-item-trashed" data-note-id="${n.id}">
-          <div class="note-item-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
-          ${preview ? `<div class="note-item-preview">${esc(preview)}</div>` : ""}
-          <div class="note-item-meta note-item-meta-trash">
-            <span>In Trash</span>
-            <button class="tag-trash-restore-btn" data-id="${n.id}">Restore</button>
-          </div>
-        </div>`;
-    }).join("");
+    const isTrashExp = state.tagTrashExpanded;
+    html += `<button class="subfolder-section-toggle" id="tag-trash-toggle">
+      <svg class="subfolder-toggle-chev${isTrashExp ? " open" : ""}" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      In Trash
+      <span class="subfolder-section-count">${state.tagTrashedNotes.length}</span>
+    </button>`;
+    if (isTrashExp) {
+      html += state.tagTrashedNotes.map(n => {
+        const preview = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+        return `
+          <div class="note-item note-item-trashed" data-note-id="${n.id}">
+            <div class="note-item-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
+            ${preview ? `<div class="note-item-preview">${esc(preview)}</div>` : ""}
+            <div class="note-item-meta note-item-meta-trash">
+              <span>In Trash</span>
+              <button class="tag-trash-restore-btn" data-id="${n.id}">Restore</button>
+            </div>
+          </div>`;
+      }).join("");
+    }
   }
 
   notesList.innerHTML = html;
+
+  const tagTrashToggle = $("tag-trash-toggle");
+  if (tagTrashToggle) {
+    tagTrashToggle.addEventListener("click", () => {
+      state.tagTrashExpanded = !state.tagTrashExpanded;
+      localStorage.setItem("tagTrashExpanded", state.tagTrashExpanded);
+      renderNotesList();
+    });
+  }
 
   const subfToggle = $("subfolder-toggle");
   if (subfToggle) {
@@ -1669,6 +1770,10 @@ async function openNote(note) {
   if (state.dirty) await saveNoteNow();
   state.note = note;
   noteTitle.value = note.title || "";
+  // Loading a note's content is not a user edit — suppress the undo/redo
+  // MutationObserver across both this synchronous clear and the deferred
+  // rAF load below, then reset history once the real content has landed.
+  suppressUndoTracking = true;
   noteBody.innerHTML = "";
   bodyPlaceholder.classList.remove("hidden");
   renderTagChips(note.tags || []);
@@ -1702,6 +1807,15 @@ async function openNote(note) {
       }
     }
     editorBody.scrollTop = 0;
+    // Deferred to a microtask so it runs AFTER the undo MutationObserver's own
+    // queued callback for this note's content load — that callback is queued
+    // at the moment of the innerHTML write above, so a microtask queued here
+    // (after) always runs later (strict FIFO), guaranteeing the observer still
+    // sees suppressUndoTracking===true and ignores the load.
+    queueMicrotask(() => {
+      suppressUndoTracking = false;
+      undoResetForNote();
+    });
   });
 }
 
@@ -2118,6 +2232,219 @@ function mdMakeList(markerLen, tag) {
   updateNoteBodyPlaceholder(); scheduleSave();
 }
 
+// ── Undo / redo ────────────────────────────────────────────────────────────
+// contenteditable's NATIVE undo (whatever Cmd+Z does by default) only tracks
+// edits the browser itself performed. A lot of this editor's features —
+// mdInsertList/mdInsertDivider, indentLi/outdentLi, the code/link unwrap
+// paths in applyFormat, checklist toggling, and paste auto-linking — mutate
+// the DOM directly via plain JS, invisible to that native stack. Once native
+// undo has to step back through one of those edits, its bookkeeping no
+// longer matches the real DOM and it goes erratic: a Cmd+Z that does
+// nothing, then one that jumps back past several unrelated words at once.
+// Confirmed by reproducing it directly (typed into a bullet list created by
+// mdInsertList; undo went inert for two presses at the list-creation
+// boundary, then jumped back into unrelated earlier text).
+//
+// Fix: Journery owns Cmd+Z/Cmd+Shift+Z entirely and never calls the native
+// undo command. History is a plain array of {html, sel} snapshots. A
+// MutationObserver — not per-feature wiring — drives checkpointing, so this
+// automatically covers every mutation path above AND any future one without
+// needing to remember to wire it in. Consecutive mutations within a short
+// idle window collapse into one checkpoint (matches how mainstream editors
+// group fast bursts of typing into one undo step); `forceCheckpointBoundary`
+// is used at a few points (paste, Tab-indent) where merging with adjacent
+// typing would be surprising even inside that window.
+let undoStack = [];
+let redoStack = [];
+let lastQuietSnapshot = null;   // content as of the last idle moment — the checkpoint candidate for the NEXT burst
+let pendingCheckpoint = null;   // checkpoint for the burst currently in progress, once one starts
+let checkpointTimer = null;
+let suppressUndoTracking = false; // true while loading a note or applying history — not a user edit
+const UNDO_DEBOUNCE_MS = 600;
+const UNDO_MAX_DEPTH = 100;
+
+// Serialize the caret/selection as plain character offsets into noteBody's
+// content, walking the DOM in document order (not Range.toString() — it
+// silently drops <br>, a gotcha already hit elsewhere in this file). <br>
+// and the boundary between top-level block "lines" each count as one
+// implicit newline, matching how the rest of the editor already reasons
+// about line structure. Offsets (not node references) are what let a
+// snapshot be restored after innerHTML has been replaced wholesale.
+function undoTextOffset(targetNode, targetOffset) {
+  let count = 0, result = -1;
+  (function visit(node) {
+    if (result !== -1) return;
+    if (node === targetNode) {
+      if (node.nodeType === Node.TEXT_NODE) { result = count + targetOffset; return; }
+      for (let i = 0; i < targetOffset && i < node.childNodes.length; i++) visit(node.childNodes[i]);
+      if (result === -1) result = count;
+      return;
+    }
+    if (node.nodeType === Node.TEXT_NODE) {
+      count += node.textContent.length;
+    } else if (node.nodeName === 'BR') {
+      count += 1;
+    } else {
+      for (const child of node.childNodes) { visit(child); if (result !== -1) return; }
+      if (node.parentElement === noteBody && node.nextSibling) count += 1;
+    }
+  })(noteBody);
+  return result === -1 ? count : result;
+}
+
+function undoCaretOffsets() {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || !noteBody.contains(sel.anchorNode)) return null;
+  const r = sel.getRangeAt(0);
+  return {
+    start: undoTextOffset(r.startContainer, r.startOffset),
+    end:   undoTextOffset(r.endContainer, r.endOffset),
+  };
+}
+
+// Inverse of undoTextOffset: walk the (freshly restored) DOM consuming the
+// same implicit character count, and return the (node, offset) at which a
+// Range should land for a given target offset.
+function undoPositionAtOffset(targetOffset) {
+  let count = 0, result = null;
+  (function visit(node) {
+    if (result) return;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = node.textContent.length;
+      if (count + len >= targetOffset) { result = { node, offset: targetOffset - count }; return; }
+      count += len;
+    } else if (node.nodeName === 'BR') {
+      if (count + 1 >= targetOffset) {
+        const idx = Array.prototype.indexOf.call(node.parentNode.childNodes, node);
+        result = { node: node.parentNode, offset: idx + 1 };
+        return;
+      }
+      count += 1;
+    } else {
+      for (const child of Array.from(node.childNodes)) { visit(child); if (result) return; }
+      if (node.parentElement === noteBody && node.nextSibling) count += 1;
+    }
+  })(noteBody);
+  return result || { node: noteBody, offset: noteBody.childNodes.length };
+}
+
+function undoRestoreCaret(offsets) {
+  if (!offsets) return;
+  try {
+    const startPos = undoPositionAtOffset(offsets.start);
+    const endPos = offsets.end === offsets.start ? startPos : undoPositionAtOffset(offsets.end);
+    const range = document.createRange();
+    range.setStart(startPos.node, startPos.offset);
+    range.setEnd(endPos.node, endPos.offset);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  } catch (_) { /* fall back to no caret restore — better than throwing */ }
+}
+
+function undoCaptureSnapshot() {
+  return { html: noteBody.innerHTML, sel: undoCaretOffsets() };
+}
+
+function undoFinalizeCheckpoint() {
+  if (checkpointTimer) { clearTimeout(checkpointTimer); checkpointTimer = null; }
+  if (!pendingCheckpoint) return;
+  undoStack.push(pendingCheckpoint);
+  if (undoStack.length > UNDO_MAX_DEPTH) undoStack.shift();
+  pendingCheckpoint = null;
+  lastQuietSnapshot = undoCaptureSnapshot();
+}
+
+// Explicit boundary for actions that should never merge with adjacent
+// typing even if they land inside the debounce window — paste and
+// Tab/Shift+Tab list indent are the clearest cases (undoing a paste should
+// remove exactly and only what was pasted).
+function forceCheckpointBoundary() {
+  undoFinalizeCheckpoint();
+  lastQuietSnapshot = undoCaptureSnapshot();
+}
+
+function undoResetForNote() {
+  if (checkpointTimer) { clearTimeout(checkpointTimer); checkpointTimer = null; }
+  undoStack = [];
+  redoStack = [];
+  pendingCheckpoint = null;
+  lastQuietSnapshot = undoCaptureSnapshot();
+}
+
+function performUndo() {
+  if (checkpointTimer) { clearTimeout(checkpointTimer); checkpointTimer = null; }
+  if (pendingCheckpoint) { undoStack.push(pendingCheckpoint); pendingCheckpoint = null; }
+  if (!undoStack.length) return;
+  const checkpoint = undoStack.pop();
+  redoStack.push(undoCaptureSnapshot());
+  applyUndoSnapshot(checkpoint);
+}
+
+function performRedo() {
+  if (!redoStack.length) return;
+  const checkpoint = redoStack.pop();
+  undoStack.push(undoCaptureSnapshot());
+  applyUndoSnapshot(checkpoint);
+}
+
+function applyUndoSnapshot(snap) {
+  suppressUndoTracking = true;
+  noteBody.innerHTML = snap.html;
+  undoRestoreCaret(snap.sel);
+  updateNoteBodyPlaceholder();
+  decorateLinks();
+  lastQuietSnapshot = undoCaptureSnapshot();
+  scheduleSave();
+  // Deferred to a microtask — see the comment on the equivalent pattern in
+  // openNote(). Clearing this synchronously would flip it back to false
+  // BEFORE the MutationObserver's own queued callback for the innerHTML
+  // write above actually runs, so it would wrongly treat our own undo/redo
+  // restore as a fresh edit and wipe the other stack.
+  queueMicrotask(() => { suppressUndoTracking = false; });
+}
+
+new MutationObserver(() => {
+  if (suppressUndoTracking) return;
+  if (!pendingCheckpoint) {
+    pendingCheckpoint = lastQuietSnapshot || undoCaptureSnapshot();
+    redoStack = [];
+  }
+  if (checkpointTimer) clearTimeout(checkpointTimer);
+  checkpointTimer = setTimeout(undoFinalizeCheckpoint, UNDO_DEBOUNCE_MS);
+}).observe(noteBody, {
+  childList: true, subtree: true, characterData: true,
+  attributes: true, attributeFilter: ['class'], // catches checklist checkbox toggles (li.classList.toggle('done'))
+});
+
+// Registered before the "Editor keyboard shortcuts" keydown listener further
+// down, so it runs first (same-element listeners fire in registration
+// order) — no other branch there reacts to Cmd/Ctrl+Z, but this keeps intent
+// explicit regardless.
+noteBody.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) performRedo(); else performUndo();
+  }
+});
+
+// Word-boundary checkpointing. The 600ms idle debounce alone isn't enough:
+// real continuous typing often has gaps well under 600ms between words, so a
+// whole sentence typed at a normal pace would merge into one undo step and
+// Cmd+Z would remove far more than "the last word" — reported directly after
+// shipping the debounce-only version. Fix: whenever the character about to
+// be inserted is a word/sentence boundary (space, newline, tab, or common
+// punctuation), finalize whatever was typed so far as its own checkpoint
+// BEFORE that character lands, so each word becomes its own undo step
+// regardless of typing speed. The debounce timer remains as a fallback for
+// the last word before a pause (which has no following boundary character).
+const UNDO_BOUNDARY_CHARS = new Set([' ', '\n', '\t', '.', ',', '!', '?', ';', ':']);
+noteBody.addEventListener('beforeinput', e => {
+  if (e.inputType === 'insertText' && e.data && UNDO_BOUNDARY_CHARS.has(e.data)) {
+    undoFinalizeCheckpoint();
+  }
+});
+
 // beforeinput fires BEFORE the character lands in the DOM.
 // e.data is the exact character the user is typing — reliable on iOS virtual keyboard.
 noteBody.addEventListener('beforeinput', e => {
@@ -2217,10 +2544,74 @@ noteBody.addEventListener("input", () => {
   scheduleSave();
 });
 
+// Detect http(s)/www URLs in pasted plain text and turn them into real <a>
+// links. Deliberately conservative: only http(s):// and www.-prefixed
+// domains, not bare "word.tld" tokens (too many false positives — "e.g.",
+// version numbers, etc.). Trims trailing sentence punctuation and unbalanced
+// closing brackets picked up by the greedy match (e.g. "(see https://x.com)").
+const PASTE_URL_PATTERN = /\b(?:https?:\/\/[^\s<>"'\)\]]+|www\.[a-z0-9-]+(?:\.[a-z0-9-]+)+(?:[/?#][^\s<>"'\)\]]*)?)/gi;
+
+function linkifyFragment(text) {
+  const frag = document.createDocumentFragment();
+  const lines = text.split(/\r\n|\r|\n/);
+  lines.forEach((line, i) => {
+    if (i > 0) frag.appendChild(document.createElement("br"));
+    let last = 0, m;
+    PASTE_URL_PATTERN.lastIndex = 0;
+    while ((m = PASTE_URL_PATTERN.exec(line))) {
+      if (m.index > last) frag.appendChild(document.createTextNode(line.slice(last, m.index)));
+      let url = m[0], trail = "";
+      const punct = url.match(/[.,;:!?]+$/);
+      if (punct) { trail = punct[0]; url = url.slice(0, -trail.length); }
+      while (/[)\]]$/.test(url)) {
+        const close = url.slice(-1), open = close === ")" ? "(" : "[";
+        const opens  = (url.match(new RegExp("\\" + open, "g"))  || []).length;
+        const closes = (url.match(new RegExp("\\" + close, "g")) || []).length;
+        if (closes <= opens) break;
+        trail = close + trail;
+        url = url.slice(0, -1);
+      }
+      const a = document.createElement("a");
+      a.href = /^https?:\/\//i.test(url) ? url : "https://" + url;
+      a.textContent = url;
+      frag.appendChild(a);
+      if (trail) frag.appendChild(document.createTextNode(trail));
+      last = m.index + m[0].length;
+    }
+    if (last < line.length) frag.appendChild(document.createTextNode(line.slice(last)));
+  });
+  return frag;
+}
+
 noteBody.addEventListener("paste", e => {
   e.preventDefault();
   const text = e.clipboardData.getData("text/plain");
-  document.execCommand("insertText", false, text);
+  if (!text) return;
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  // Pasted content should undo as its own step, never merged with whatever
+  // typing happened right before it.
+  forceCheckpointBoundary();
+  // Manual Range insertion, not execCommand('insertHTML') — Chrome's insertHTML
+  // auto-wraps orphaned top-level text-node siblings into separate <div>s while
+  // leaving <a> tags unwrapped, fragmenting a single pasted line into multiple
+  // blocks. Range.insertNode drops the fragment's nodes in place with no such
+  // normalization, matching how mdInsertList/mdInsertDivider already do manual
+  // DOM surgery elsewhere in this file.
+  const range = sel.getRangeAt(0);
+  range.deleteContents();
+  const frag = linkifyFragment(text);
+  const lastNode = frag.lastChild;
+  range.insertNode(frag);
+  if (lastNode) {
+    const after = document.createRange();
+    after.setStartAfter(lastNode);
+    after.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(after);
+  }
+  decorateLinks();
+  scheduleSave();
 });
 
 // ── Editor keyboard shortcuts ─────────────────────────────────────────────────
@@ -2336,6 +2727,7 @@ noteBody.addEventListener("keydown", e => {
       const sel = window.getSelection();
       const r = sel.rangeCount ? sel.getRangeAt(0) : null;
       const sc = r && r.startContainer, so = r ? r.startOffset : 0;
+      forceCheckpointBoundary(); // indent/outdent should undo as its own step
       if (e.shiftKey) outdentLi(li); else indentLi(li);
       // Manual DOM edits don't fire `input`, and moving nodes drops the
       // selection — restore the caret to the same text node/offset (which
@@ -2656,6 +3048,9 @@ document.addEventListener("selectionchange", () => {
 
 function applyFormat(fmt) {
   noteBody.focus();
+  // A deliberate format action (toolbar tap or shortcut) should always undo
+  // as its own step, distinct from surrounding typing.
+  forceCheckpointBoundary();
   if (fmt === 'p' || fmt === 'h1' || fmt === 'h2' || fmt === 'h3' || fmt === 'quote') {
     // 'p' always drops back to plain body text — the explicit way out of
     // a heading, rather than relying on re-clicking the same heading to
@@ -2899,6 +3294,7 @@ function tryToggleCheckbox(e, clientX) {
   const now = Date.now();
   if (now - lastCheckToggleAt < 350) return; // ignore the synthetic-mouse duplicate after touch
   lastCheckToggleAt = now;
+  forceCheckpointBoundary(); // a checkbox tap is its own deliberate action, never merged with adjacent typing
   li.classList.toggle("done");
   scheduleSave();
 }
@@ -3029,11 +3425,24 @@ async function newNote() {
   state.note = { id: null, title: "", body: "", folder_id: folderId, tags: initialTags };
   state.dirty = false;
   noteTitle.value = "";
+  suppressUndoTracking = true;
   noteBody.innerHTML = "";
+  // Deferred to a microtask — see the comment on the equivalent pattern in openNote().
+  queueMicrotask(() => {
+    suppressUndoTracking = false;
+    undoResetForNote();
+  });
   updateNoteBodyPlaceholder();
   renderTagChips(initialTags);
   renderNoteDates(null);
   setAutosave("");
+  // A new note is never trashed — reset whatever openNote() may have left in
+  // place if the previously-open note was in Trash (readOnly/contentEditable/
+  // disabled tag input/trash banner), or a new note silently inherits them.
+  $("trash-banner").classList.add("hidden");
+  noteTitle.readOnly = false;
+  noteBody.contentEditable = "true";
+  tagInput.disabled = false;
   showEditorBody();
   renderNotesList();
   setMobileView("editor");
@@ -3684,6 +4093,7 @@ async function refreshOpenNoteFromServer() {
   const scrollTop = editorBody ? editorBody.scrollTop : 0;
   state.note = fresh;
   noteTitle.value = fresh.title || "";
+  suppressUndoTracking = true;
   noteBody.innerHTML = bodyToHtml(fresh.body || "");
   decorateLinks();
   renderTagChips(fresh.tags || []);
@@ -3691,6 +4101,11 @@ async function refreshOpenNoteFromServer() {
   updateNoteBodyPlaceholder();
   autosizeTitle();
   if (editorBody) editorBody.scrollTop = scrollTop;
+  // Deferred to a microtask — see the comment on the equivalent pattern in openNote().
+  queueMicrotask(() => {
+    suppressUndoTracking = false;
+    undoResetForNote();
+  });
   showToast("Updated from another device");
 }
 

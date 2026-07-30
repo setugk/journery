@@ -2,6 +2,8 @@ import sqlite3
 import os
 import uuid
 import secrets
+import threading
+import time
 from datetime import datetime, timezone
 
 # Defaults to the container's /data volume; override with JOURNERY_DB to run
@@ -109,6 +111,25 @@ def init_db():
     conn.close()
     purge_old_trash()
     purge_expired_shares()
+    # The two purges above only run once, right here at startup. On a
+    # long-running container (weeks between deploys/restarts), that's not
+    # often enough: get_trash() has no read-time age filter (unlike shares,
+    # which double-check expiry on every read as a safety net), so a trashed
+    # note past 30 days would just sit there, visibly contradicting the "cleared
+    # automatically after 30 days" promise, until the next restart happens to
+    # purge it. This daemon thread re-runs both purges every 24h so cleanup
+    # doesn't depend on how often the container restarts.
+    threading.Thread(target=_periodic_cleanup, daemon=True).start()
+
+
+def _periodic_cleanup():
+    while True:
+        time.sleep(24 * 60 * 60)
+        try:
+            purge_old_trash()
+            purge_expired_shares()
+        except Exception as e:
+            print(f"[cleanup] periodic purge failed: {e}")
 
 
 def now():
