@@ -429,6 +429,8 @@ const CHANGELOG = [
     "Pasting a URL into a note now makes it a real, clickable link automatically",
     "The sidebar now clearly highlights whatever you have open — a tag, folder, year, All Notes, or Trash — in your theme's accent color",
     "Fixed: Cmd/Ctrl+Z in a note could remove nothing, or several words at once, instead of just the last thing you typed — undo/redo now behaves predictably (word by word, and Cmd/Ctrl+Shift+Z to redo)",
+    "Cleaner indent/outdent, bullet, and numbered list icons in the formatting toolbar",
+    "Fixed: adding a divider (---) in some notes could delete nearby content — it now always splits just the current line, even in notes with pasted or nested structure",
     "Bug fixes & improvements",
   ]},
   { version: "1.28", date: "July 2026", changes: [
@@ -2067,6 +2069,12 @@ function mdLineBeforeCaret(block, range) {
   return line;
 }
 
+// Block-level tag names that act as a "line" boundary inside an editor block —
+// used by mdInsertDivider so a block containing nested block children (not just
+// <br>-joined inline runs) still splits at the right line instead of the whole
+// block. HR is included so an existing divider is never crossed.
+const MD_BLOCK_TAGS = new Set(['DIV','P','H1','H2','H3','H4','H5','H6','OL','UL','LI','HR','BLOCKQUOTE','PRE','TABLE','FIGURE']);
+
 function mdInsertDivider(block, range) {
   const hr    = document.createElement('hr');
   const after = document.createElement('div');
@@ -2092,22 +2100,36 @@ function mdInsertDivider(block, range) {
     return;
   }
 
-  // Split the block at the caret's visual LINE so a divider typed on a <br>-joined
-  // line replaces ONLY that line and keeps its siblings (the old code replaced the
-  // whole block, which wiped adjacent lines in pasted/edited notes).
+  // Split the block at the caret's current LINE so a divider replaces ONLY that
+  // line and keeps its siblings. A "line" is bounded by a <br> OR by a
+  // block-level element sibling — because a block can itself contain nested
+  // block children (h3/ol/div, e.g. from a paste or a contentEditable artifact),
+  // not only <br>-joined inline runs. The old code treated ONLY <br> as a
+  // boundary, so in a block whose children are block elements with no <br>
+  // between them the walk spanned the ENTIRE block and the divider wiped every
+  // line in it — reported as "adding a divider deleted two whole sections."
   let node = range.startContainer;
   if (node === block) node = block.childNodes[Math.max(0, range.startOffset - 1)] || block.firstChild;
   while (node && node.parentNode && node.parentNode !== block) node = node.parentNode; // climb to block's direct child
   if (!node) { block.replaceWith(hr); hr.insertAdjacentElement('afterend', after); placeCaret(after); scheduleSave(); return; }
 
-  let first = node; while (first.previousSibling && first.previousSibling.nodeName !== 'BR') first = first.previousSibling;
-  let last  = node; while (last.nextSibling  && last.nextSibling.nodeName  !== 'BR') last  = last.nextSibling;
+  const isLineBoundary = (n) => n && (n.nodeName === 'BR' || MD_BLOCK_TAGS.has(n.nodeName));
+  let first, last;
+  if (MD_BLOCK_TAGS.has(node.nodeName)) {
+    first = last = node;  // the caret's line is itself a whole block-level element
+  } else {
+    first = node; while (first.previousSibling && !isLineBoundary(first.previousSibling)) first = first.previousSibling;
+    last  = node; while (last.nextSibling  && !isLineBoundary(last.nextSibling))  last  = last.nextSibling;
+  }
   const brBefore = first.previousSibling && first.previousSibling.nodeName === 'BR' ? first.previousSibling : null;
   const brAfter  = last.nextSibling  && last.nextSibling.nodeName  === 'BR' ? last.nextSibling  : null;
 
-  // Lines below the divider move into a new block.
+  // Everything AFTER the current line moves into a new block below the divider.
+  // Start after the trailing <br> separator if there is one, else right after
+  // `last` (the block-child case has no separating <br>).
   const afterBlock = document.createElement('div');
-  if (brAfter) { let n = brAfter.nextSibling; while (n) { const nx = n.nextSibling; afterBlock.appendChild(n); n = nx; } }
+  { let n = brAfter ? brAfter.nextSibling : last.nextSibling;
+    while (n) { const nx = n.nextSibling; afterBlock.appendChild(n); n = nx; } }
 
   // Drop the current line (the "--" marker) and its bounding <br>s.
   let n = first;
