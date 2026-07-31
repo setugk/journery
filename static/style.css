@@ -302,6 +302,14 @@ body {
    so the rotation actually wins when the section is expanded. */
 .nav-item.nav-expandable .section-chev.open { transform: translateY(-50%) rotate(90deg); }
 
+/* An expanded section header reads a touch stronger than a collapsed one — its
+   label brightens from the muted --text-2 to full --text and its icon/chevron
+   lift a step too. Subtle weight/color only (no background chrome), so the open
+   section is clearly the active one without shouting. Theme-token based. */
+.nav-item.nav-expandable.expanded { color: var(--text); font-weight: 500; }
+.nav-item.nav-expandable.expanded .nav-icon { color: var(--text-2); }
+.nav-item.nav-expandable.expanded .section-chev { color: var(--text-muted); }
+
 /* Folders gets a light divider since it's a different category */
 #folders-section {
   border-top: 1px solid var(--divider);
@@ -878,7 +886,10 @@ body {
 .note-body-input b, .note-body-input strong { font-weight: 600; }
 .note-body-input i, .note-body-input em { font-style: italic; }
 .note-body-input u { text-decoration: underline; }
-.note-body-input s, .note-body-input strike { text-decoration: line-through; }
+/* Struck text also dims to the muted token (same treatment as a done checklist
+   item) so it's distinguishable at a glance, not just by the thin line. Uses a
+   theme token, so it adapts to every theme. */
+.note-body-input s, .note-body-input strike { text-decoration: line-through; color: var(--text-muted); }
 .note-body-input ol { list-style: decimal; padding-left: 1.5em; margin: 0.3em 0; }
 .note-body-input li { margin: 0.1em 0; font-weight: 400; }
 

@@ -431,6 +431,11 @@ const CHANGELOG = [
     "Fixed: Cmd/Ctrl+Z in a note could remove nothing, or several words at once, instead of just the last thing you typed — undo/redo now behaves predictably (word by word, and Cmd/Ctrl+Shift+Z to redo)",
     "Cleaner indent/outdent, bullet, and numbered list icons in the formatting toolbar",
     "Fixed: adding a divider (---) in some notes could delete nearby content — it now always splits just the current line, even in notes with pasted or nested structure",
+    "Numbered lists now start from the number you type — write “3.” to continue a list at 3 after a break of notes, instead of always resetting to 1",
+    "Shift+Enter now adds a soft line break inside a list item (or any line) — a new line aligned with the text, without starting a new bullet or number",
+    "You can now pin as many tags as you like — the 5-tag limit is gone",
+    "Struck-through text now dims so it's easy to tell apart from normal text at a glance",
+    "An expanded sidebar section (Pinned, Tags, Timeline) now reads a touch stronger, so it's clearer which one is open",
     "Bug fixes & improvements",
   ]},
   { version: "1.28", date: "July 2026", changes: [
@@ -814,7 +819,6 @@ async function savePinnedTags() {
 
 async function pinTag(tagName) {
   if (state.pinnedTags.includes(tagName)) return;
-  if (state.pinnedTags.length >= 5) { showToast("Max 5 pinned tags"); return; }
   state.pinnedTags.push(tagName);
   await savePinnedTags();
   renderSidebar();
@@ -829,7 +833,10 @@ async function unpinTag(tagName) {
 function renderTimeline() {
   const chev = $("timeline-chev");
   const list = $("timeline-list");
-  if (chev) chev.classList.toggle("open", state.timelineExpanded);
+  if (chev) {
+    chev.classList.toggle("open", state.timelineExpanded);
+    chev.closest(".nav-item")?.classList.toggle("expanded", state.timelineExpanded);
+  }
   list.innerHTML = "";
   if (!state.timelineExpanded || !state.noteYears.length) return;
   state.noteYears.forEach(({ year, count }) => {
@@ -844,7 +851,10 @@ function renderTimeline() {
 function renderPinnedTags() {
   const chev = $("pinned-tags-chev");
   const list = $("pinned-tags-list");
-  if (chev) chev.classList.toggle("open", state.pinnedTagsExpanded);
+  if (chev) {
+    chev.classList.toggle("open", state.pinnedTagsExpanded);
+    chev.closest(".nav-item")?.classList.toggle("expanded", state.pinnedTagsExpanded);
+  }
   list.innerHTML = "";
   if (!state.pinnedTagsExpanded) return;
   const pinned = state.pinnedTags.filter(name => state.tags.some(t => t.name === name));
@@ -876,7 +886,10 @@ function renderAllTags() {
   // filtered shortcut. So list all tags here — pinned ones appear in both,
   // each showing the correct pin/unpin control.
   if (countEl) countEl.textContent = state.tags.length || "";
-  if (chev) chev.classList.toggle("open", state.allTagsExpanded);
+  if (chev) {
+    chev.classList.toggle("open", state.allTagsExpanded);
+    chev.closest(".nav-item")?.classList.toggle("expanded", state.allTagsExpanded);
+  }
   list.innerHTML = "";
   const section = $("all-tags-section");
   if (section) section.style.display = !state.tags.length ? "none" : "";
@@ -2157,8 +2170,9 @@ function mdInsertDivider(block, range) {
   scheduleSave();
 }
 
-function mdInsertList(block, tag) {
+function mdInsertList(block, tag, startNum) {
   const list = document.createElement(tag);
+  if (tag === 'ol' && Number.isInteger(startNum) && startNum !== 1) list.setAttribute('start', String(startNum));
   const li   = document.createElement('li');
   list.appendChild(li);
   if (block !== noteBody) {
@@ -2181,7 +2195,7 @@ function mdInsertList(block, tag) {
 // line. We move the current visual line's nodes into a fresh <li>, strip the
 // marker, preserve <br>-joined siblings (split the block), and place the caret in
 // the <li> ourselves — deterministic across engines.
-function mdMakeList(markerLen, tag) {
+function mdMakeList(markerLen, tag, startNum) {
   const sel = window.getSelection();
   if (!sel || !sel.rangeCount) return;
   const range = sel.getRangeAt(0);
@@ -2189,6 +2203,10 @@ function mdMakeList(markerLen, tag) {
   if (!block) return;
 
   const list = document.createElement(tag === 'ol' ? 'ol' : 'ul');
+  // Honor the number the user actually typed: "3." starts the list at 3, not 1,
+  // so a numbered list can pick up where it left off after a break of notes or
+  // other blocks. start=1 is the HTML default, so no attribute is needed there.
+  if (tag === 'ol' && Number.isInteger(startNum) && startNum !== 1) list.setAttribute('start', String(startNum));
   const li   = document.createElement('li');
   list.appendChild(li);
 
@@ -2491,7 +2509,7 @@ noteBody.addEventListener('beforeinput', e => {
     const before = mdLineBeforeCaret(block, range);
     if (before == null) return;
     if (before === '*' || before === '-') { e.preventDefault(); mdMakeList(1, 'ul'); return; }
-    if (/^\d+\.$/.test(before))            { e.preventDefault(); mdMakeList(before.length, 'ol'); return; }
+    if (/^\d+\.$/.test(before))            { e.preventDefault(); mdMakeList(before.length, 'ol', parseInt(before, 10)); return; }
     return;
   }
   // Third dash → divider (catches "--" + "-", and "–" + "-" after iOS autocorrect).
@@ -2560,7 +2578,7 @@ noteBody.addEventListener("input", () => {
     } else if (raw === '* ' || raw === '- ') {
       mdInsertList(block, 'ul');
     } else if (/^\d+\. $/.test(raw)) {
-      mdInsertList(block, 'ol');
+      mdInsertList(block, 'ol', parseInt(raw, 10));
     }
   }
   scheduleSave();
@@ -2794,6 +2812,20 @@ noteBody.addEventListener("keydown", e => {
         return;
       }
     }
+  }
+
+  // Shift+Enter → a soft line break within the current line / list item: a new
+  // line aligned with the text, NOT a new bullet/number (the standard editor
+  // behavior). Chromium does this natively, but WebKit (Safari/iOS) instead
+  // splits into a new <li> (or a new <div> in plain text), so we do it
+  // ourselves. execCommand('insertLineBreak') is the one approach that's both
+  // correct AND identical across engines here (verified in Chromium + WebKit) —
+  // manual <br>-insertion mis-positions the caret after a trailing <br>.
+  if (e.key === "Enter" && e.shiftKey) {
+    e.preventDefault();
+    forceCheckpointBoundary();  // a soft break is its own undo step
+    document.execCommand('insertLineBreak');
+    return;
   }
 
   // Enter on an EMPTY bullet steps out one nesting level (and off the list
