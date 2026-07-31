@@ -193,6 +193,34 @@ def rename_folder(folder_id, name):
     return dict(row) if row else None
 
 
+def would_create_cycle(folder_id, parent_id):
+    """True if setting folder_id's parent to parent_id would nest the folder
+    inside itself or its own subtree (which would orphan the resulting cycle).
+    The client already prevents this in the move UI; this is the server-side
+    backstop so a malformed request can't corrupt the folder tree."""
+    if not parent_id:
+        return False
+    if folder_id == parent_id:
+        return True
+    conn = get_conn()
+    rows = conn.execute("SELECT id, parent_id FROM folders").fetchall()
+    conn.close()
+    children = {}
+    for r in rows:
+        children.setdefault(r["parent_id"], []).append(r["id"])
+    stack = list(children.get(folder_id, []))
+    seen = set()
+    while stack:
+        cur = stack.pop()
+        if cur == parent_id:
+            return True
+        if cur in seen:
+            continue
+        seen.add(cur)
+        stack.extend(children.get(cur, []))
+    return False
+
+
 def move_folder(folder_id, parent_id):
     conn = get_conn()
     ts = now()

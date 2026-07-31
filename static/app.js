@@ -385,12 +385,26 @@ $("theme-import-input").addEventListener("change", async e => {
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
 let toastTimer;
-function showToast(msg) {
+// showToast(msg) — plain text toast. showToast(msg, {label, fn}) — adds an
+// action button (e.g. "Undo") and keeps the toast up longer so it's tappable.
+function showToast(msg, action) {
   const t = $("toast");
-  t.textContent = msg;
+  t.innerHTML = "";
+  t.appendChild(document.createTextNode(msg));
+  if (action && action.label && action.fn) {
+    const btn = document.createElement("button");
+    btn.className = "toast-action";
+    btn.textContent = action.label;
+    btn.addEventListener("click", () => {
+      t.classList.add("hidden");
+      clearTimeout(toastTimer);
+      action.fn();
+    });
+    t.appendChild(btn);
+  }
   t.classList.remove("hidden");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.add("hidden"), 2500);
+  toastTimer = setTimeout(() => t.classList.add("hidden"), action ? 6000 : 2500);
 }
 
 // ── Settings ──────────────────────────────────────────────────────────────────
@@ -414,6 +428,10 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.30", date: "July 2026", changes: [
+    "Drag and drop to move things (on desktop) — drag a folder onto another folder to nest it, or drag a note onto a folder to move it or onto a tag to add that tag. Each move shows an Undo. (On phones/tablets, the move picker is unchanged.)",
+    "Bug fixes & improvements",
+  ]},
   { version: "1.29", date: "July 2026", changes: [
     "Share a whole tag — open a tag, tap the share icon, and get one public link to every note with that tag (a read-only index anyone can browse). Add the tag to a note to publish it, remove it to un-publish. Expiry + revoke work just like note links.",
     "Cleaner, more balanced Share dialog",
@@ -868,6 +886,7 @@ function renderPinnedTags() {
     const isActive = state.context.type === "tag" && state.context.id === name;
     const btn = document.createElement("button");
     btn.className = "tag-nav-item" + (isActive ? " active" : "");
+    btn.dataset.tag = name;   // drop target: dragging a note here adds this tag
     btn.innerHTML = `<button class="tag-pin-btn pinned tag-pin-left" title="Unpin">${PIN_SVG}</button><span class="tag-hash">#</span>${esc(name)}<span class="tag-right"><span class="tag-count">${tag.count}</span></span>`;
     btn.addEventListener("click", () => navigateToTag(name));
     btn.querySelector(".tag-pin-btn").addEventListener("click", e => {
@@ -899,6 +918,7 @@ function renderAllTags() {
     const isActive = state.context.type === "tag" && state.context.id === tag.name;
     const btn = document.createElement("button");
     btn.className = "tag-nav-item" + (isActive ? " active" : "");
+    btn.dataset.tag = tag.name;   // drop target: dragging a note here adds this tag
     // Pin sits to the left, same as the Pinned section, for a consistent look.
     const pinBtn = isPinned
       ? `<button class="tag-pin-btn pinned tag-pin-left" title="Unpin">${PIN_SVG}</button>`
@@ -1169,6 +1189,7 @@ function renderFolderNode(node, depth = 0) {
   row.className = "folder-row" + (isActive ? " active" : "");
   row.dataset.folderId = node.id;
   row.style.paddingLeft = (depth * 12) + "px";
+  if (!isTouch) row.draggable = true;   // desktop drag-and-drop (see setupDragAndDrop)
 
   if (hasChildren) {
     const toggle = document.createElement("button");
@@ -1221,6 +1242,186 @@ function renderFolderTree() {
   const tree = buildTree(state.folders);
   folderTree.innerHTML = "";
   tree.forEach(node => folderTree.appendChild(renderFolderNode(node)));
+}
+
+// ── Drag & drop (desktop only) ─────────────────────────────────────────────
+// Native HTML5 drag-and-drop as a faster alternative to the move picker: drag a
+// folder onto another folder to nest it, or drag a note onto a folder (reassign
+// its folder) or a tag (add that tag). Gated to non-touch — iOS has no reliable
+// native DnD and the mobile drill-down layout shows source/target panes one at a
+// time, so mobile keeps the modal picker (see setupDragAndDrop's isTouch guard).
+// Handlers are delegated off a stable root, so they survive every re-render.
+let dndItem = null;        // { type: 'folder'|'note', id } for the in-flight drag
+let dndHighlight = null;   // the drop-target element currently highlighted
+
+function dndClearHighlight() {
+  if (dndHighlight) { dndHighlight.classList.remove("drop-target"); dndHighlight = null; }
+}
+
+// The valid drop-target element under the pointer for the current drag, or null.
+function dndTargetFor(e) {
+  if (!dndItem) return null;
+  const folderRow = e.target.closest?.(".folder-row");
+  const tagItem   = e.target.closest?.(".tag-nav-item");
+  if (dndItem.type === "folder") {
+    // folder → folder: reparent, but never into itself or its own subtree
+    // (getDescendantIds includes the folder itself), which would orphan a cycle.
+    if (folderRow && folderRow.dataset.folderId && !getDescendantIds(dndItem.id).has(folderRow.dataset.folderId)) {
+      return folderRow;
+    }
+    // folder → the Folders section (its header/empty area, NOT a folder row):
+    // move to the top level (parent_id = null), making it a sibling of the
+    // root folders. Only offered when the folder is currently nested, so a
+    // root folder dropped here isn't a confusing no-op. This is the only way to
+    // UN-nest via DnD — dropping on a folder row always nests deeper.
+    const foldersSection = e.target.closest?.("#folders-section");
+    if (foldersSection && !folderRow) {
+      const folder = state.folders.find(f => f.id === dndItem.id);
+      if (folder && folder.parent_id) return foldersSection;
+    }
+    return null;
+  }
+  // note → folder (reassign) or note → tag (add the tag)
+  if (folderRow && folderRow.dataset.folderId) return folderRow;
+  if (tagItem && tagItem.dataset.tag) return tagItem;
+  return null;
+}
+
+function setupDragAndDrop() {
+  if (isTouch) return;   // desktop only; mobile keeps the modal picker
+  const root = document.querySelector(".app") || document.body;
+
+  root.addEventListener("dragstart", e => {
+    const folderRow = e.target.closest?.(".folder-row");
+    const noteItem  = e.target.closest?.(".note-item");
+    let sourceEl = null;
+    // Don't allow dragging trashed notes (they live in the Trash view).
+    if (folderRow && folderRow.dataset.folderId) {
+      dndItem = { type: "folder", id: folderRow.dataset.folderId };
+      folderRow.classList.add("dragging");
+      sourceEl = folderRow;
+    } else if (noteItem && noteItem.dataset.noteId &&
+               !noteItem.classList.contains("trash-note-item") &&
+               !noteItem.classList.contains("note-item-trashed")) {
+      dndItem = { type: "note", id: noteItem.dataset.noteId };
+      noteItem.classList.add("dragging");
+      sourceEl = noteItem;
+    } else {
+      return;
+    }
+    e.dataTransfer.effectAllowed = "move";
+    // Firefox won't start a drag unless some data is set.
+    try { e.dataTransfer.setData("text/plain", dndItem.id); } catch (_) {}
+    // Custom drag image = a solid, opaque CLONE of the actual card/row being
+    // dragged. The browser's DEFAULT drag image is a snapshot the engine forces
+    // translucent and CSS can't reach (which is why bumping .dragging opacity did
+    // nothing to the thing under the cursor). We hand it our own clone instead —
+    // same card, just fully opaque with a lifted shadow — so what follows the
+    // cursor looks like the card you grabbed. Rendered off-screen only long
+    // enough for the browser to snapshot it synchronously, then removed.
+    try {
+      const rect  = sourceEl.getBoundingClientRect();
+      const clone = sourceEl.cloneNode(true);
+      clone.classList.remove("dragging", "active", "selected");
+      clone.querySelectorAll(".note-checkbox").forEach(c => c.remove());
+      clone.classList.add("drag-image");
+      clone.style.width = rect.width + "px";
+      document.body.appendChild(clone);
+      // Offset keeps the card under the cursor at the exact point it was grabbed.
+      e.dataTransfer.setDragImage(clone, e.clientX - rect.left, e.clientY - rect.top);
+      requestAnimationFrame(() => clone.remove());
+    } catch (_) {}
+  });
+
+  root.addEventListener("dragend", () => {
+    root.querySelectorAll(".dragging").forEach(el => el.classList.remove("dragging"));
+    dndClearHighlight();
+    dndItem = null;
+  });
+
+  root.addEventListener("dragover", e => {
+    const target = dndTargetFor(e);
+    if (!target) { dndClearHighlight(); return; }
+    e.preventDefault();                       // required to allow a drop here
+    e.dataTransfer.dropEffect = "move";
+    if (target !== dndHighlight) {
+      dndClearHighlight();
+      target.classList.add("drop-target");
+      dndHighlight = target;
+    }
+  });
+
+  root.addEventListener("drop", e => {
+    const target = dndTargetFor(e);
+    dndClearHighlight();
+    if (!target || !dndItem) return;
+    e.preventDefault();
+    const item = dndItem;
+    dndItem = null;
+    performDrop(item, target);
+  });
+}
+
+async function performDrop(item, targetEl) {
+  try {
+    if (item.type === "folder") {
+      // No dataset.folderId → the Folders-section (root) target: move to top level.
+      const targetId = targetEl.dataset.folderId || null;
+      const folder = state.folders.find(f => f.id === item.id);
+      if (!folder || (folder.parent_id || null) === targetId) return;   // no-op (already there)
+      const prevParent = folder.parent_id || null;
+      await api("PUT", `/api/folders/${item.id}`, { parent_id: targetId });
+      folder.parent_id = targetId;
+      if (targetId) {
+        state.expandedFolders.add(targetId);
+        localStorage.setItem("expandedFolders", JSON.stringify([...state.expandedFolders]));
+      }
+      renderSidebar();
+      const movedMsg = targetId
+        ? `Moved “${folder.name}” into “${state.folders.find(f => f.id === targetId)?.name || "folder"}”`
+        : `Moved “${folder.name}” to the top level`;
+      showToast(movedMsg, { label: "Undo", fn: async () => {
+        await api("PUT", `/api/folders/${item.id}`, { parent_id: prevParent });
+        folder.parent_id = prevParent;
+        renderSidebar();
+      }});
+      return;
+    }
+
+    // note drop — look it up in the current list, fall back to a fetch
+    const noteId = item.id;
+    const note = state.notes.find(n => n.id === noteId) || await api("GET", `/api/notes/${noteId}`);
+    if (!note) return;
+
+    if (targetEl.classList.contains("folder-row")) {
+      const folderId = targetEl.dataset.folderId;
+      if (note.folder_id === folderId) return;   // already in this folder
+      const prevFolder = note.folder_id || null;
+      const targetName = state.folders.find(f => f.id === folderId)?.name || "folder";
+      await api("PUT", `/api/notes/${noteId}`, { folder_id: folderId });
+      await loadNotes();
+      showToast(`Moved to “${targetName}”`, { label: "Undo", fn: async () => {
+        await api("PUT", `/api/notes/${noteId}`, { folder_id: prevFolder });
+        await loadNotes();
+      }});
+    } else {
+      const tagName = targetEl.dataset.tag;
+      const prevTags = note.tags || [];
+      if (prevTags.includes(tagName)) { showToast(`Already tagged #${tagName}`); return; }
+      await api("PUT", `/api/notes/${noteId}`, { tags: [...prevTags, tagName] });
+      state.tags = await api("GET", "/api/tags");
+      renderSidebar();
+      await loadNotes();
+      showToast(`Added #${tagName}`, { label: "Undo", fn: async () => {
+        await api("PUT", `/api/notes/${noteId}`, { tags: prevTags });
+        state.tags = await api("GET", "/api/tags");
+        renderSidebar();
+        await loadNotes();
+      }});
+    }
+  } catch (_) {
+    showToast("Move failed");
+  }
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -1641,7 +1842,7 @@ function renderNotesList() {
     const chips    = n.tags.map(t => `<span class="note-tag-chip">#${esc(t)}</span>`).join("");
     const dateStr = timeAgo(state.dateDisplay === "updated" ? n.updated_at : n.created_at);
     return `
-      <div class="note-item${isActive ? " active" : ""}${isSelected ? " selected" : ""}" data-note-id="${n.id}">
+      <div class="note-item${isActive ? " active" : ""}${isSelected ? " selected" : ""}" data-note-id="${n.id}"${!isTouch && !state.selectMode ? ' draggable="true"' : ''}>
         ${state.selectMode ? `<input type="checkbox" class="note-checkbox"${isSelected ? " checked" : ""}>` : ""}
         <div class="note-item-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
         ${preview ? `<div class="note-item-preview">${esc(preview)}</div>` : ""}
@@ -4344,6 +4545,8 @@ function updateOfflinePill() {
 window.addEventListener("online", updateOfflinePill);
 window.addEventListener("offline", updateOfflinePill);
 updateOfflinePill();
+
+setupDragAndDrop();   // desktop drag-and-drop (self-gates on isTouch)
 
 if (shareNoteId) {
   // Share link → standalone read view; skip the full app load. Apply the viewer's

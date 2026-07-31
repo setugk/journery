@@ -30,7 +30,7 @@ DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 # traffic. Never set this on prod/beta (self-hosted instances get no
 # analytics of any kind — see README's privacy promise). Empty = no beacon.
 CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
-APP_VERSION     = "1.29.27"
+APP_VERSION     = "1.30.0"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -95,7 +95,10 @@ def create_folder():
 def update_folder(folder_id):
     data = request.get_json(silent=True) or {}
     if "parent_id" in data:
-        result = db.move_folder(folder_id, data["parent_id"] or None)
+        new_parent = data["parent_id"] or None
+        if db.would_create_cycle(folder_id, new_parent):
+            return jsonify({"error": "cannot move a folder into itself or its own subfolder"}), 400
+        result = db.move_folder(folder_id, new_parent)
         if not result:
             return jsonify({"error": "not found"}), 404
         return jsonify(result)
