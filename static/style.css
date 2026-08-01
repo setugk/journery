@@ -1428,6 +1428,14 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
 }
 .settings-panel.hidden { display: none; }
 
+/* Subtle author credit, centered under the General panel. */
+.settings-credit {
+  text-align: center;
+  font-size: var(--fs-13);
+  color: var(--text-faint);
+  margin-top: 8px;
+}
+
 /* iOS-style group */
 .settings-group {}
 

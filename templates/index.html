@@ -395,24 +395,20 @@
             <span>General</span>
             <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
           </button>
-          <button class="settings-cat-item" data-section="changelog">
-            <span>What's New</span>
-            <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
-          </button>
-          <button class="settings-cat-item" data-section="sidebar">
-            <span>Sidebar</span>
+          <button class="settings-cat-item" data-section="themes">
+            <span>Themes</span>
             <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
           </button>
           <button class="settings-cat-item" data-section="tags">
             <span>Tags</span>
             <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
           </button>
-          <button class="settings-cat-item" data-section="themes">
-            <span>Themes</span>
-            <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
-          </button>
           <button class="settings-cat-item" data-section="data">
             <span>Data</span>
+            <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
+          </button>
+          <button class="settings-cat-item" data-section="changelog">
+            <span>What's New</span>
             <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
           </button>
         </nav>
@@ -469,28 +465,7 @@
             </div>
           </div>
           <div class="settings-group">
-            <div class="settings-group-title">About</div>
-            <div class="settings-group-rows">
-              <div class="settings-row">
-                <div class="settings-row-label">Version</div>
-                <div class="settings-row-value">{{ app_version }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- What's New panel -->
-        <div class="settings-panel hidden" id="settings-panel-changelog">
-          <div class="settings-group">
-            <div class="settings-group-title">What's New</div>
-            <div id="changelog-list"></div>
-          </div>
-        </div>
-
-        <!-- Sidebar panel -->
-        <div class="settings-panel hidden" id="settings-panel-sidebar">
-          <div class="settings-group">
-            <div class="settings-group-title">Navigation</div>
+            <div class="settings-group-title">Sidebar</div>
             <div class="settings-group-rows">
               <div class="settings-row">
                 <div>
@@ -500,6 +475,24 @@
                 <button class="toggle-switch" id="settings-folders-toggle"></button>
               </div>
             </div>
+          </div>
+          <div class="settings-group">
+            <div class="settings-group-title">About</div>
+            <div class="settings-group-rows">
+              <div class="settings-row">
+                <div class="settings-row-label">Version</div>
+                <div class="settings-row-value">{{ app_version }}</div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-credit">Built by Setu Kathawate</div>
+        </div>
+
+        <!-- What's New panel -->
+        <div class="settings-panel hidden" id="settings-panel-changelog">
+          <div class="settings-group">
+            <div class="settings-group-title">What's New</div>
+            <div id="changelog-list"></div>
           </div>
         </div>
 

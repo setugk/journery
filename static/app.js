@@ -422,7 +422,7 @@ function updateRecentsRangePicker() {
 }
 
 const SETTINGS_SECTION_LABELS = {
-  general: "General", changelog: "What's New", sidebar: "Sidebar", tags: "Tags", themes: "Themes", data: "Data",
+  general: "General", changelog: "What's New", tags: "Tags", themes: "Themes", data: "Data",
 };
 
 // User-facing changelog. Curated highlights only — major features per release,
@@ -430,6 +430,9 @@ const SETTINGS_SECTION_LABELS = {
 const CHANGELOG = [
   { version: "1.30", date: "July 2026", changes: [
     "Drag and drop to move things (on desktop) — drag a folder onto another folder to nest it, or drag a note onto a folder to move it or onto a tag to add that tag. Each move shows an Undo. (On phones/tablets, the move picker is unchanged.)",
+    "Your display settings now follow you across devices — theme, folder & date visibility, date display, sort order, and Recents range are saved to your account, so a new device or sign-in keeps them instead of resetting.",
+    "Tidier Settings — the one-item “Sidebar” tab is folded into General, and the categories are ordered more sensibly.",
+    "Right-click a folder or a tag in the sidebar for quick options — rename, move, delete, pin, share — the same way you can right-click a note.",
     "Bug fixes & improvements",
   ]},
   { version: "1.29", date: "July 2026", changes: [
@@ -624,7 +627,7 @@ $("date-display-picker").addEventListener("click", e => {
   const btn = e.target.closest("[data-value]");
   if (!btn) return;
   state.dateDisplay = btn.dataset.value;
-  localStorage.setItem("dateDisplay", state.dateDisplay);
+  saveSyncedSetting("dateDisplay", state.dateDisplay);
   updateDatePicker();
   renderNotesList();
 });
@@ -633,7 +636,7 @@ $("recents-range-picker").addEventListener("click", e => {
   const btn = e.target.closest("[data-value]");
   if (!btn) return;
   state.recentsRange = btn.dataset.value;
-  localStorage.setItem("recentsRange", state.recentsRange);
+  saveSyncedSetting("recentsRange", state.recentsRange);
   updateRecentsRangePicker();
   if (state.context.type === "recents") paneTitle.textContent = recentsPaneTitle();
   renderNotesList();
@@ -648,29 +651,52 @@ const PENCIL_SVG = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" 
 const CHECK_SVG  = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
 const X_SVG      = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
+// Rename a tag everywhere it's used (API + open context + pinned list). Shared
+// by the Settings inline editor and the sidebar right-click menu. Normalizes and
+// no-ops on an empty/unchanged name.
+async function applyTagRename(oldName, rawNewName) {
+  const newName = (rawNewName || "").replace(/[,#]/g, "").trim().toLowerCase();
+  if (!newName || newName === oldName) return;
+  await api("PUT", `/api/tags/${encodeURIComponent(oldName)}`, { name: newName });
+  if (state.context.type === "tag" && state.context.id === oldName) {
+    state.context.id = newName;
+    state.context.label = "#" + newName;
+    paneTitle.textContent = "#" + newName;
+  }
+  const pinIdx = state.pinnedTags.indexOf(oldName);
+  if (pinIdx !== -1) { state.pinnedTags[pinIdx] = newName; await savePinnedTags(); }
+  state.tags = await api("GET", "/api/tags");
+  renderSidebar();
+  await loadNotes();
+  showToast(`Tag renamed to "#${newName}"`);
+}
+
+// Delete a tag from all notes. Shared by Settings and the right-click menu.
+async function deleteTagFlow(tagName) {
+  if (!confirm(`Delete "#${tagName}" from all notes?`)) return;
+  await api("DELETE", `/api/tags/${encodeURIComponent(tagName)}`);
+  state.pinnedTags = state.pinnedTags.filter(t => t !== tagName);
+  await savePinnedTags();
+  state.tags = await api("GET", "/api/tags");
+  renderSidebar();
+  await loadNotes();
+  showToast(`Tag "#${tagName}" deleted`);
+}
+
+// Right-click "Rename": prompt for the new name (the Settings panel uses an
+// inline input instead; both funnel through applyTagRename).
+async function renameTagFlow(oldName) {
+  const input = prompt(`Rename #${oldName} to:`, oldName);
+  if (input == null) return;
+  await applyTagRename(oldName, input);
+}
+
 async function doRenameTag(oldName) {
   const input = $("settings-tags-list").querySelector(".settings-tag-rename-input");
   if (!input) return;
-  const newName = input.value.replace(/[,#]/g, "").trim().toLowerCase();
+  const value = input.value;
   editingTag = null;
-  if (newName && newName !== oldName) {
-    await api("PUT", `/api/tags/${encodeURIComponent(oldName)}`, { name: newName });
-    if (state.context.type === "tag" && state.context.id === oldName) {
-      state.context.id = newName;
-      state.context.label = "#" + newName;
-      paneTitle.textContent = "#" + newName;
-    }
-    // Update pinnedTags if the renamed tag was pinned
-    const pinIdx = state.pinnedTags.indexOf(oldName);
-    if (pinIdx !== -1) {
-      state.pinnedTags[pinIdx] = newName;
-      await savePinnedTags();
-    }
-    state.tags = await api("GET", "/api/tags");
-    renderSidebar();
-    await loadNotes();
-    showToast(`Tag renamed to "#${newName}"`);
-  }
+  await applyTagRename(oldName, value);
   renderSettingsTags();
 }
 
@@ -723,17 +749,8 @@ function renderSettingsTags() {
 
   list.querySelectorAll(".settings-tag-delete").forEach(btn => {
     btn.addEventListener("click", async () => {
-      const tagName = btn.dataset.tag;
-      if (!confirm(`Delete "#${tagName}" from all notes?`)) return;
-      await api("DELETE", `/api/tags/${encodeURIComponent(tagName)}`);
-      // Remove from pinned if pinned
-      state.pinnedTags = state.pinnedTags.filter(t => t !== tagName);
-      await savePinnedTags();
-      state.tags = await api("GET", "/api/tags");
-      renderSidebar();
+      await deleteTagFlow(btn.dataset.tag);
       renderSettingsTags();
-      await loadNotes();
-      showToast(`Tag "#${tagName}" deleted`);
     });
   });
 }
@@ -808,13 +825,13 @@ $("feedback-send-btn").addEventListener("click", async () => {
 profileMenu.addEventListener("click", e => e.stopPropagation());
 $("settings-folders-toggle").addEventListener("click", () => {
   state.showFolders = !state.showFolders;
-  localStorage.setItem("showFolders", state.showFolders);
+  saveSyncedSetting("showFolders", state.showFolders);
   $("settings-folders-toggle").classList.toggle("on", state.showFolders);
   updateFoldersVisibility();
 });
 $("settings-dates-toggle").addEventListener("click", () => {
   state.showNoteDates = !state.showNoteDates;
-  localStorage.setItem("showNoteDates", state.showNoteDates);
+  saveSyncedSetting("showNoteDates", state.showNoteDates);
   $("settings-dates-toggle").classList.toggle("on", state.showNoteDates);
   renderNoteDates(state.note);   // reflect immediately on the open note
 });
@@ -1145,9 +1162,28 @@ function getDescendantIds(folderId) {
 }
 
 let activeFolderCtxMenu = null;
+let activeTagCtxMenu = null;
 
-function openFolderCtxMenu(node, anchor) {
-  if (activeFolderCtxMenu) { activeFolderCtxMenu.remove(); activeFolderCtxMenu = null; return; }
+function closeCtxMenus() {
+  if (activeFolderCtxMenu) { activeFolderCtxMenu.remove(); activeFolderCtxMenu = null; }
+  if (activeTagCtxMenu)    { activeTagCtxMenu.remove();    activeTagCtxMenu = null; }
+}
+
+// Keep a cursor-positioned menu on-screen (nudge left/up if it would overflow).
+function clampCtxMenu(menu) {
+  requestAnimationFrame(() => {
+    const rect = menu.getBoundingClientRect();
+    if (rect.right  > window.innerWidth)  menu.style.left = (window.innerWidth  - rect.width  - 8) + "px";
+    if (rect.bottom > window.innerHeight) menu.style.top  = (window.innerHeight - rect.height - 8) + "px";
+  });
+}
+
+// Folder options — opened by the kebab (anchored) OR by right-click (at the
+// cursor; pass coords). Same menu either way.
+function openFolderCtxMenu(node, anchor, coords) {
+  const wasOpen = activeFolderCtxMenu;
+  closeCtxMenus();
+  if (wasOpen && !coords) return;   // a second kebab click toggles it shut
   const menu = document.createElement("div");
   menu.className = "folder-ctx-menu";
   menu.innerHTML = `
@@ -1156,14 +1192,17 @@ function openFolderCtxMenu(node, anchor) {
     <button data-action="move">Move to…</button>
     <button data-action="delete" class="danger">Delete folder</button>
   `;
-  const rect = anchor.getBoundingClientRect();
-  menu.style.top  = (rect.bottom + 6) + "px";
-  menu.style.right = (window.innerWidth - rect.right + 4) + "px";
+  if (coords) { menu.style.left = coords.x + "px"; menu.style.top = coords.y + "px"; }
+  else {
+    const rect = anchor.getBoundingClientRect();
+    menu.style.top   = (rect.bottom + 6) + "px";
+    menu.style.right = (window.innerWidth - rect.right + 4) + "px";
+  }
   menu.addEventListener("click", e => {
     const btn = e.target.closest("[data-action]");
     if (!btn) return;
     e.stopPropagation();
-    menu.remove(); activeFolderCtxMenu = null;
+    closeCtxMenus();
     const a = btn.dataset.action;
     if (a === "new")    openFolderModal(null, node.id);
     if (a === "rename") openFolderModal(node);
@@ -1172,10 +1211,59 @@ function openFolderCtxMenu(node, anchor) {
   });
   document.body.appendChild(menu);
   activeFolderCtxMenu = menu;
-  setTimeout(() => document.addEventListener("click", () => {
-    menu.remove(); activeFolderCtxMenu = null;
-  }, { once: true }), 10);
+  if (coords) clampCtxMenu(menu);
+  setTimeout(() => document.addEventListener("click", closeCtxMenus, { once: true }), 10);
 }
+
+// Tag options — right-click a sidebar tag. Same actions available elsewhere
+// (pin/unpin in the sidebar, rename/delete in Settings → Tags, share in the
+// tag view), gathered into one quick menu.
+function openTagCtxMenu(tagName, coords) {
+  closeCtxMenus();
+  const isPinned = state.pinnedTags.includes(tagName);
+  const menu = document.createElement("div");
+  menu.className = "folder-ctx-menu";   // reuse the same context-menu styling
+  menu.innerHTML = `
+    <button data-action="pin">${isPinned ? "Unpin" : "Pin"}</button>
+    <button data-action="rename">Rename</button>
+    <button data-action="share">Share tag</button>
+    <button data-action="delete" class="danger">Delete tag</button>
+  `;
+  menu.style.left = coords.x + "px";
+  menu.style.top  = coords.y + "px";
+  menu.addEventListener("click", e => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    e.stopPropagation();
+    closeCtxMenus();
+    const a = btn.dataset.action;
+    if (a === "pin")    isPinned ? unpinTag(tagName) : pinTag(tagName);
+    if (a === "rename") renameTagFlow(tagName);
+    if (a === "share")  openShareSheet({ kind: "tag", tag: tagName });
+    if (a === "delete") deleteTagFlow(tagName);
+  });
+  document.body.appendChild(menu);
+  activeTagCtxMenu = menu;
+  clampCtxMenu(menu);
+  setTimeout(() => document.addEventListener("click", closeCtxMenus, { once: true }), 10);
+}
+
+// Right-click a folder row or a sidebar tag → its options menu (same actions as
+// the folder kebab / Settings→Tags, just faster). Delegated on the sidebar so
+// it survives every re-render. Folder actions only need id/name, so the flat
+// folder object from state.folders works (no tree node required).
+document.querySelector(".sidebar")?.addEventListener("contextmenu", e => {
+  const folderRow = e.target.closest(".folder-row");
+  const tagItem   = e.target.closest(".tag-nav-item");
+  if (folderRow && folderRow.dataset.folderId) {
+    e.preventDefault();
+    const folder = state.folders.find(f => f.id === folderRow.dataset.folderId);
+    if (folder) openFolderCtxMenu(folder, null, { x: e.clientX, y: e.clientY });
+  } else if (tagItem && tagItem.dataset.tag) {
+    e.preventDefault();
+    openTagCtxMenu(tagItem.dataset.tag, { x: e.clientX, y: e.clientY });
+  }
+});
 
 const FOLDER_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
 const CHEV_SVG  = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
@@ -1533,16 +1621,41 @@ navRecents.addEventListener("click", () => {
 
 $("nav-trash").addEventListener("click", navigateToTrash);
 
+// ── Cross-device settings sync ──────────────────────────────────────────────
+// Display/content preferences that should follow the user across devices/sign-
+// ins — persisted to BOTH localStorage (instant + offline) and the server
+// key/value store (cross-device). Deliberately NOT synced: device-specific
+// prefs (pane widths, dark-mode toggle) and ephemeral UI state (expand/collapse
+// sections, focus mode) — those are meant to stay per-device.
+const SYNCED_SETTINGS = ["showFolders", "showNoteDates", "dateDisplay", "sortBy", "recentsRange"];
+
+// Write a synced setting locally (instant) and push to the server (best-effort).
+function saveSyncedSetting(key, value) {
+  localStorage.setItem(key, value);
+  api("PUT", `/api/settings/${key}`, { value: String(value) }).catch(() => {});
+}
+
+// Apply a server value onto state + localStorage, parsing to each key's type.
+function applySyncedSetting(key, value) {
+  localStorage.setItem(key, value);
+  if (key === "showFolders")        state.showFolders   = value === "true";
+  else if (key === "showNoteDates") state.showNoteDates = value !== "false";
+  else if (key === "dateDisplay")   state.dateDisplay   = value;
+  else if (key === "sortBy")        state.sortBy        = value;
+  else if (key === "recentsRange")  state.recentsRange  = value;
+}
+
 // ── Load data ─────────────────────────────────────────────────────────────────
 
 async function loadAll() {
-  const [folders, tags, all, trash, pinnedTagsSetting, themeSetting] = await Promise.all([
+  const [folders, tags, all, trash, pinnedTagsSetting, themeSetting, ...syncedResults] = await Promise.all([
     api("GET", "/api/folders"),
     api("GET", "/api/tags"),
     api("GET", "/api/notes"),
     api("GET", "/api/trash"),
     api("GET", "/api/settings/pinnedTags"),
     api("GET", "/api/settings/activeTheme"),
+    ...SYNCED_SETTINGS.map(k => api("GET", `/api/settings/${k}`)),
   ]);
   if (pinnedTagsSetting.value != null) {
     state.pinnedTags = JSON.parse(pinnedTagsSetting.value);
@@ -1559,8 +1672,31 @@ async function loadAll() {
     } catch {}
   } else {
     const local = localStorage.getItem("activeTheme");
-    if (local) { try { applyTheme(JSON.parse(local)); } catch {} }
+    if (local) {
+      try { applyTheme(JSON.parse(local)); } catch {}
+      // Bootstrap: server has no theme yet but this device does — push it up so
+      // other devices pick it up (mirrors pinnedTags). Fixes a theme that was
+      // set before cross-device sync existed and so never reached the server.
+      api("PUT", "/api/settings/activeTheme", { value: local }).catch(() => {});
+    }
   }
+
+  // Synced display prefs: the server value wins if present; otherwise bootstrap
+  // this device's local value up to the server (self-heals prefs set before
+  // sync). Then refresh the affected UI (renderSidebar/loadNotes below cover the
+  // folder tree + notes list; these cover the sort/date/recents indicators).
+  SYNCED_SETTINGS.forEach((key, i) => {
+    const v = syncedResults[i] && syncedResults[i].value;
+    if (v != null) applySyncedSetting(key, v);
+    else {
+      const local = localStorage.getItem(key);
+      if (local != null) api("PUT", `/api/settings/${key}`, { value: String(local) }).catch(() => {});
+    }
+  });
+  updateSortUI();
+  updateDatePicker();
+  updateRecentsRangePicker();
+  if (state.context.type === "recents") paneTitle.textContent = recentsPaneTitle();
   state.folders = folders;
   state.tags = tags;
   allNotesCount.textContent = all.length || "";
@@ -1651,7 +1787,7 @@ $("sort-btn").addEventListener("click", e => {
 document.querySelectorAll("#sort-menu [data-sort], #notes-overflow-menu [data-sort]").forEach(btn => {
   btn.addEventListener("click", () => {
     state.sortBy = btn.dataset.sort;
-    localStorage.setItem("sortBy", state.sortBy);
+    saveSyncedSetting("sortBy", state.sortBy);
     closeHeaderMenus();
     updateSortUI();
     renderNotesList();
@@ -2852,6 +2988,10 @@ noteBody.addEventListener("paste", e => {
     sel.addRange(after);
   }
   decorateLinks();
+  // Manual Range insertion doesn't fire `input`, so the placeholder-hide that
+  // normally runs there is skipped — update it explicitly or the "Start
+  // writing…" hint overlaps the pasted text until a reload.
+  updateNoteBodyPlaceholder();
   scheduleSave();
 });
 

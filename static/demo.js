@@ -325,6 +325,17 @@
   // ── Demo-only UI wiring ─────────────────────────────────────────────────────
   document.body.classList.add("demo-mode");
 
+  // Public sharing needs server-side note storage + the /shared/* route, which
+  // the browser-only demo doesn't have — a share link would be dead, and the
+  // demoApi has no /share handler so "Create link" throws. Hide the Share entry
+  // points entirely. Inline display:none (not the .no-demo class) because these
+  // buttons are styled by an id selector (#notes-overflow-menu button) that
+  // out-specifies .demo-mode .no-demo.
+  ["share-note-btn", "share-tag-option"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+
   // Export runs client-side (the <a href="/api/export"> would hit the empty server)
   const exportLink = document.querySelector('a[href="/api/export"]');
   if (exportLink) {
