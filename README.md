@@ -2,9 +2,9 @@
 
 A self-hosted private journaling app. Nestable folders, tagged notes, markdown-syntax editor, search. Runs on a NAS or any Docker host, accessed via browser on any device.
 
-![Journery desktop](screenshots/desktop-home.png)
+![Journery on desktop — sidebar, notes list, and editor in a three-pane layout](screenshots/journery-home.png)
 
-<img src="screenshots/mobile-home.png" alt="Journery on mobile" width="300" />
+<img src="screenshots/journery-mobile.png" alt="Journery on mobile — the notes list on a phone" width="300" />
 
 ## What it does
 
@@ -13,23 +13,27 @@ A self-hosted private journaling app. Nestable folders, tagged notes, markdown-s
 - Tags with autocomplete, both in the sidebar and inline in the editor
 - Full-text search across all notes
 - Trash with 30-day retention + restore
-- 20+ built-in themes, light and dark
+- 48 built-in themes, light and dark
 - PWA — add to home screen on iOS/Android
 - Auto-saves 2s after last keystroke
 - Real-time sync polling across tabs/devices
 - 3-pane layout on desktop; drill-down navigation on mobile
 
-Formatting bar — headings, quotes, lists, checklists, code, links:
+Rich text from a floating toolbar — headings, quotes, bold/italic/underline/strike, bullet & numbered lists, checklists, inline & block code, links, and indentation:
 
-![Journery editor formatting](screenshots/text-formatting-options.png)
+![Journery's editor with the floating formatting toolbar over selected text](screenshots/journery-formatting.png)
 
-Make it yours with 20+ themes (Nord, Catppuccin, Gruvbox, Dracula, Solarized, and more):
+Make it yours with 48 built-in themes (Nord, Catppuccin, Gruvbox, Dracula, Solarized, Tokyo Night, Rosé Pine, and more), light and dark:
 
-![Journery themes](screenshots/desktop-themes.png)
+![Journery's theme picker showing the grid of built-in themes](screenshots/journery-themes.png)
+
+Share any note — or a whole tag — as a public, read-only link that anyone can open without signing in, with optional auto-expiry and one-tap revoke:
+
+![Journery's public note-sharing dialog with a copyable link](screenshots/journery-sharing.png)
 
 ## Try it first
 
-Kick the tyres at **[demo-journery.setugk.com](https://demo-journery.setugk.com)** — a full demo where everything is saved only in your browser (nothing shared, nothing stored on a server). When you're ready, host your own below.
+Kick the tyres at **[demo.myjournery.com](https://demo.myjournery.com)** — a full demo where everything is saved only in your browser (nothing shared, nothing stored on a server). When you're ready, host your own below.
 
 *(That demo page uses cookie-less Cloudflare Web Analytics so I can see how many people try it — just page views, nothing else. Your own self-hosted instance has zero analytics of any kind, ever; see the privacy note below.)*
 
