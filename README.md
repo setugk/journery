@@ -8,15 +8,17 @@ A self-hosted private journaling app. Nestable folders, tagged notes, markdown-s
 
 ## What it does
 
-- **Rich editor** — headings, bold/italic/underline/strike, pull quotes, inline & block code, links, checklists, and nested lists with depth-varying bullets
-- Nested folders with rename, move, and drag-and-drop
-- Tags with autocomplete, both in the sidebar and inline in the editor
-- Full-text search across all notes
+- **Rich editor** — headings, bold/italic/underline/strike, pull quotes, inline & block code, links, checklists, and nested lists with depth-varying bullets; paste a URL and it auto-links, and Shift+Enter adds a soft line break
+- **Word-level undo/redo** (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z) — reliable even across list/format actions
+- Nested folders and tags, with autocomplete — organise by either, or both
+- **Drag and drop** (desktop) — a note into a folder or onto a tag, or a folder into another to nest it; drag to the Folders header to un-nest
+- **Right-click** a note, folder, or tag for quick actions (rename, move, delete, pin, share)
+- **Public share links** — turn any note, or a whole tag, into a read-only link anyone can open without signing in, with optional auto-expiry and one-tap revoke
+- Full-text search, plus a Timeline to browse by year
 - Trash with 30-day retention + restore
-- 48 built-in themes, light and dark
+- 48 built-in themes, light and dark — and your theme + display settings follow you across devices
 - PWA — add to home screen on iOS/Android
-- Auto-saves 2s after last keystroke
-- Real-time sync polling across tabs/devices
+- Auto-saves as you type; live sync across tabs and devices
 - 3-pane layout on desktop; drill-down navigation on mobile
 
 Rich text from a floating toolbar — headings, quotes, bold/italic/underline/strike, bullet & numbered lists, checklists, inline & block code, links, and indentation:
