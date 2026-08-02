@@ -2,6 +2,14 @@
 html { height: -webkit-fill-available; }
 
 :root {
+  /* Checklist checkbox icons (theme-independent shapes; colored via
+     background-color so every theme's accent still applies). Empty = Lucide
+     `square` outline (a squircle); done = a filled squircle with a Lucide-style
+     check knocked out (evenodd), so the accent fills the box and the tick shows
+     through in the surface color. Generated in scratchpad/gen.mjs. */
+  --check-empty: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='5'/%3E%3C/svg%3E");
+  --check-done: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%23000' fill-rule='evenodd' d='M8 3 h8 a5 5 0 0 1 5 5 v8 a5 5 0 0 1 -5 5 h-8 a5 5 0 0 1 -5 -5 v-8 a5 5 0 0 1 5 -5 z M6.88 13.02 L10.37 16.52 L17.19 8.25 L15.61 6.95 L10.23 13.48 L8.32 11.58 Z'/%3E%3C/svg%3E");
+
   --bg: #F5F5F5;
   --surface: #FFFFFF;
   --surface-2: #FAFAFA;
@@ -369,7 +377,11 @@ body {
   color: var(--text); font-weight: 600;
 }
 .tag-nav-item.active .tag-hash { color: var(--accent); }
-.tag-hash { color: var(--text-faint); font-size: var(--fs-12); }
+/* Wraps the "#" + tag name as a single flex item so the row's 8px flex gap sits
+   only between the pin icon and the label — the hash hugs the tag text with no
+   gap between them. */
+.tag-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-hash { color: var(--text-faint); font-size: var(--fs-12); margin-right: 2px; }
 /* count right-aligns to the same reserved column as the section counts */
 .tag-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .tag-count { font-size: var(--fs-11); color: var(--text-faint); }
@@ -388,9 +400,11 @@ body {
 .tag-pin-btn.pinned { opacity: 1; color: var(--text-muted); }
 
 /* Pinned tags: pin sits to the LEFT of the hashtag (a tappable unpin target,
-   away from the row's open-tag tap area) */
+   away from the row's open-tag tap area). Width + zero margin match the section
+   header's .nav-icon column (14px starting at the 16px padding edge) so the pin
+   icons line up in the same vertical column as the "Pinned" header icon. */
 .tag-pin-btn.tag-pin-left {
-  width: 18px; height: 18px; margin-left: -4px; opacity: 1;
+  width: 14px; height: 18px; margin-left: 0; opacity: 1;
 }
 
 /* Pinned tags section empty state */
@@ -617,6 +631,7 @@ body {
 }
 
 .editor-toolbar {
+  position: relative;
   height: 52px;
   padding: 0 12px 0 8px;
   display: flex; align-items: center; gap: 4px;
@@ -624,11 +639,32 @@ body {
   border-bottom: 1px solid var(--divider);
 }
 
-.autosave-indicator {
-  font-size: var(--fs-11); color: var(--text-faint);
-  flex: 1; text-align: center;
-  pointer-events: none;
+/* Note title mirrored into the header, next to the back chevron. Hidden until
+   the real title scrolls up out of the editor body (driven by an
+   IntersectionObserver in app.js), then it cross-fades in as a scroll cue /
+   scroll-to-top target. Takes the flex slot so it left-aligns after the back
+   button and truncates before reaching the actions. */
+.editor-header-title {
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-15); font-weight: 600; color: var(--text);
+  padding-right: 8px;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  cursor: pointer;
 }
+.editor-header-title.visible { opacity: 1; pointer-events: auto; }
+
+.autosave-indicator {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  font-size: var(--fs-11); color: var(--text-faint);
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+/* When the title is pinned in the header, drop the (usually empty) autosave
+   text so they never overlap. */
+.editor-toolbar.title-pinned .autosave-indicator { opacity: 0; }
 
 .overflow-wrapper { position: relative; }
 .overflow-menu {
@@ -936,23 +972,24 @@ body {
 .note-body-input ul.task-list { padding-left: 1.7em; }
 .note-body-input ul.task-list > li::before {
   content: '';
-  /* inline-flex + center centers the ✓ inside the box by geometry — checkmark
-     glyphs carry heavy bottom bearing, so line-height/text-align leave it low. */
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 1.15em; height: 1.15em;
-  margin-left: -1.7em; margin-right: 0.55em; padding: 0;
-  /* middle centers the box (not by baseline) — stays put with or without the ✓.
-     `middle` targets the x-height midpoint, which sits slightly below the text's
-     visual center (caps/ascenders sit above it), so lift the box a touch to
-     optically center it with the line. */
+  display: inline-block;
+  width: 1.2em; height: 1.2em;
+  /* -1.7em pulls the box into the ul's left padding (the gutter); margins net to
+     ~zero advance so the text still starts where a plain paragraph would. */
+  margin-left: -1.7em; margin-right: 0.35em;
+  /* `middle` targets the x-height midpoint, a touch below the line's visual
+     center, so lift the box slightly to optically center it with the text. */
   vertical-align: middle; transform: translateY(-0.1em);
-  border: 1.5px solid var(--border-mid); border-radius: 8px;
-  color: var(--accent-fg); font-size: 0.9em; font-weight: 700; line-height: 1;
-  cursor: pointer; transition: background 0.12s, border-color 0.12s;
+  background-color: var(--text-muted);
+  -webkit-mask: var(--check-empty) center / contain no-repeat;
+          mask: var(--check-empty) center / contain no-repeat;
+  cursor: pointer;
+  transition: background-color 0.12s;
 }
 .note-body-input ul.task-list > li.done::before {
-  content: '\2713';                       /* ✓ */
-  background: var(--accent); border-color: var(--accent);
+  background-color: var(--accent);
+  -webkit-mask-image: var(--check-done);
+          mask-image: var(--check-done);
 }
 .note-body-input ul.task-list > li.done { color: var(--text-muted); text-decoration: line-through; }
 .note-body-input code {
@@ -1785,6 +1822,22 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   .tag-nav-item { min-height: 48px; font-size: var(--fs-16); padding: 8px 36px 8px 16px; }
   .year-nav-item { min-height: 48px; font-size: var(--fs-16); padding: 8px 36px 8px 16px; }
   .tag-pin-btn  { opacity: 1; width: 32px; height: 32px; }
+
+  /* No persistent "selected" highlight in the mobile sidebar. On mobile the
+     sidebar is a drill-down view you navigate *away* from on tap, so a lingering
+     accent-tinted active row is misleading (there's no split-pane showing the
+     open destination alongside it). Selected state stays desktop-only. */
+  .nav-item.active, .nav-item.active:hover,
+  .tag-nav-item.active, .tag-nav-item.active:hover,
+  .year-nav-item.active, .year-nav-item.active:hover,
+  .folder-row.active, .folder-row.active:hover {
+    background: none; color: var(--text-2); font-weight: 400;
+  }
+  .nav-item.active .nav-icon { color: var(--text-muted); }
+  .tag-nav-item.active .tag-hash { color: var(--text-faint); }
+  .year-nav-item.active { font-weight: 400; }
+  .folder-row.active .folder-btn { color: var(--text-2); font-weight: 400; }
+  .folder-row.active .folder-btn svg { color: var(--text-muted); }
 
   .note-item { padding: 16px 20px; }
   .note-item-title { font-size: var(--fs-15); }

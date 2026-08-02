@@ -904,7 +904,7 @@ function renderPinnedTags() {
     const btn = document.createElement("button");
     btn.className = "tag-nav-item" + (isActive ? " active" : "");
     btn.dataset.tag = name;   // drop target: dragging a note here adds this tag
-    btn.innerHTML = `<button class="tag-pin-btn pinned tag-pin-left" title="Unpin">${PIN_SVG}</button><span class="tag-hash">#</span>${esc(name)}<span class="tag-right"><span class="tag-count">${tag.count}</span></span>`;
+    btn.innerHTML = `<button class="tag-pin-btn pinned tag-pin-left" title="Unpin">${PIN_SVG}</button><span class="tag-label"><span class="tag-hash">#</span>${esc(name)}</span><span class="tag-right"><span class="tag-count">${tag.count}</span></span>`;
     btn.addEventListener("click", () => navigateToTag(name));
     btn.querySelector(".tag-pin-btn").addEventListener("click", e => {
       e.stopPropagation();
@@ -940,7 +940,7 @@ function renderAllTags() {
     const pinBtn = isPinned
       ? `<button class="tag-pin-btn pinned tag-pin-left" title="Unpin">${PIN_SVG}</button>`
       : `<button class="tag-pin-btn tag-pin-left" title="Pin">${PIN_OUTLINE_SVG}</button>`;
-    btn.innerHTML = `${pinBtn}<span class="tag-hash">#</span>${esc(tag.name)}<span class="tag-right"><span class="tag-count">${tag.count}</span></span>`;
+    btn.innerHTML = `${pinBtn}<span class="tag-label"><span class="tag-hash">#</span>${esc(tag.name)}</span><span class="tag-right"><span class="tag-count">${tag.count}</span></span>`;
     btn.addEventListener("click", () => navigateToTag(tag.name));
     btn.querySelector(".tag-pin-btn").addEventListener("click", e => {
       e.stopPropagation();
@@ -2377,11 +2377,32 @@ function autosizeTitle() {
   noteTitle.style.height = "auto";
   noteTitle.style.height = noteTitle.scrollHeight + "px";
 }
-noteTitle.addEventListener("input", () => { autosizeTitle(); scheduleSave(); });
+noteTitle.addEventListener("input", () => { autosizeTitle(); applyHeaderTitle(); scheduleSave(); });
 noteTitle.addEventListener("keydown", e => {
   if (e.key === "Enter") { e.preventDefault(); noteBody.focus(); }
 });
 window.addEventListener("resize", () => { if (state.note) autosizeTitle(); });
+
+// ── Header title: mirror the note title next to the back chevron once the real
+// title scrolls up out of the editor body, cross-fading with the autosave text.
+const editorHeaderTitle = $("editor-header-title");
+const editorToolbar     = document.querySelector(".editor-toolbar");
+let titleOutOfView = false;
+function applyHeaderTitle() {
+  const val = noteTitle.value.trim();
+  const show = titleOutOfView && val.length > 0;
+  editorHeaderTitle.textContent = val;
+  editorHeaderTitle.classList.toggle("visible", show);
+  editorToolbar.classList.toggle("title-pinned", show);
+}
+// Tap the pinned title to jump back to the top of the note.
+editorHeaderTitle.addEventListener("click", () => {
+  editorBody.scrollTo({ top: 0, behavior: "smooth" });
+});
+new IntersectionObserver((entries) => {
+  titleOutOfView = !entries[0].isIntersecting;
+  applyHeaderTitle();
+}, { root: editorBody, threshold: 0 }).observe(noteTitle);
 function mdActiveBlock() {
   const sel = window.getSelection();
   if (!sel || !sel.rangeCount) return null;
@@ -3007,6 +3028,16 @@ function currentLi() {
   return li && noteBody.contains(li) ? li : null;
 }
 
+// Every <li> the current selection touches (not just the caret's one) — so a
+// format that acts on a whole multi-item selection (e.g. bullets → checklist)
+// can reach all of them, not only the common-ancestor line.
+function selectedLis() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return [];
+  const range = sel.getRangeAt(0);
+  return [...noteBody.querySelectorAll('li')].filter(li => range.intersectsNode(li));
+}
+
 // Nest a list item under the item above it. WebKit's execCommand('indent')
 // can't be trusted for this — it wraps the item in a <blockquote> instead of a
 // nested list in many cases, which then renders as a stray accent bar. So do
@@ -3060,6 +3091,31 @@ function outdentLi(li) {
   }
 }
 
+// Nest/un-nest the caret's list item, preserving the caret. Shared by the Tab
+// key and the format-bar indent/outdent buttons, so both behave identically —
+// and both go through indentLi/outdentLi, which carry the task-list class onto
+// any new sublist (execCommand('indent') would drop it → a nested checkbox would
+// become a plain bullet). Returns false when the caret isn't in a list.
+function applyListIndent(shift) {
+  const li = currentLi();
+  if (!li) return false;
+  const sel = window.getSelection();
+  const r = sel.rangeCount ? sel.getRangeAt(0) : null;
+  const sc = r && r.startContainer, so = r ? r.startOffset : 0;
+  forceCheckpointBoundary(); // indent/outdent should undo as its own step
+  if (shift) outdentLi(li); else indentLi(li);
+  if (sc) {
+    try {
+      const nr = document.createRange();
+      nr.setStart(sc, so); nr.collapse(true);
+      sel.removeAllRanges(); sel.addRange(nr);
+    } catch (_) {}
+  }
+  updateNoteBodyPlaceholder();
+  scheduleSave();
+  return true;
+}
+
 // An <li> with no text of its own and no nested sublist — a leaf empty bullet.
 function liIsEmpty(li) {
   if (li.querySelector('ul, ol')) return false;
@@ -3103,26 +3159,8 @@ noteBody.addEventListener("keydown", e => {
     e.preventDefault();
     // In a list, Tab/Shift+Tab nest/un-nest the item (like every other editor).
     // Outside a list, Tab inserts a soft 2-space indent; Shift+Tab is a no-op.
-    const li = currentLi();
-    if (li) {
-      const sel = window.getSelection();
-      const r = sel.rangeCount ? sel.getRangeAt(0) : null;
-      const sc = r && r.startContainer, so = r ? r.startOffset : 0;
-      forceCheckpointBoundary(); // indent/outdent should undo as its own step
-      if (e.shiftKey) outdentLi(li); else indentLi(li);
-      // Manual DOM edits don't fire `input`, and moving nodes drops the
-      // selection — restore the caret to the same text node/offset (which
-      // moved intact) and save explicitly.
-      if (sc) {
-        try {
-          const nr = document.createRange();
-          nr.setStart(sc, so); nr.collapse(true);
-          sel.removeAllRanges(); sel.addRange(nr);
-        } catch (_) {}
-      }
-      updateNoteBodyPlaceholder();
-      scheduleSave();
-    } else if (!e.shiftKey) {
+    // In a list, Tab/Shift+Tab nest/un-nest the item; outside, Tab is a soft indent.
+    if (!applyListIndent(e.shiftKey) && !e.shiftKey) {
       document.execCommand('insertText', false, '  ');
     }
     return;
@@ -3550,21 +3588,40 @@ function applyFormat(fmt) {
   if (fmt === 'checklist') {
     // A checklist is a <ul class="task-list">: the checkbox is drawn as the
     // list marker (CSS ::before), so native Enter continuation and Tab nesting
-    // keep working and each new line gets its own checkbox for free.
-    const li = currentLi();
-    const list = li && li.parentElement;
-    if (list && list.classList.contains('task-list')) {
-      document.execCommand('insertUnorderedList');           // toggle off → plain lines
-    } else if (list && list.tagName === 'UL') {
-      list.classList.add('task-list');                       // bullet list → checklist, in place
+    // keep working and each new line gets its own checkbox for free. Operate on
+    // the WHOLE selection (every touched <li>), so selecting several bullets and
+    // hitting the checkbox converts them all — not just the caret's line.
+    const lis = selectedLis();
+    const inChecklist = lis.length > 0 && lis.every(li => li.parentElement?.classList.contains('task-list'));
+    const allBullets  = lis.length > 0 && lis.every(li => {
+      const p = li.parentElement;
+      return p?.tagName === 'UL' && !p.classList.contains('task-list');
+    });
+    if (inChecklist) {
+      document.execCommand('insertUnorderedList');           // checklist → plain lines
+    } else if (allBullets) {
+      // Convert the selected bullet list(s) to checklist(s) in place.
+      [...new Set(lis.map(li => li.parentElement))].forEach(ul => ul.classList.add('task-list'));
     } else {
-      document.execCommand('insertUnorderedList');           // plain/ordered → make a list…
-      const ul = currentLi()?.parentElement;
-      if (ul && ul.tagName === 'UL') ul.classList.add('task-list');  // …then tag it
+      document.execCommand('insertUnorderedList');           // plain/ordered/mixed → make a list…
+      selectedLis().forEach(li => {                          // …then tag every UL it produced
+        const ul = li.parentElement;
+        if (ul?.tagName === 'UL') ul.classList.add('task-list');
+      });
     }
     scheduleSave();
     if (!isTouch) requestAnimationFrame(showFormatBar);
+    requestAnimationFrame(updateActiveFormats);
     return;
+  }
+  if (fmt === 'indent' || fmt === 'outdent') {
+    // In a list, mirror Tab exactly (task-list-aware nesting). Outside a list,
+    // fall through to the native soft-indent handled by execCmds below.
+    if (applyListIndent(fmt === 'outdent')) {
+      if (!isTouch) requestAnimationFrame(showFormatBar);
+      requestAnimationFrame(updateActiveFormats);
+      return;
+    }
   }
   const execCmds = {
     bold:      'bold',
@@ -3677,25 +3734,49 @@ noteBody.addEventListener("click", e => {
 // preventDefault'd so the tap never focuses the editor: otherwise iOS raises
 // the keyboard first and only then registers the tick. Tapping the text itself
 // (outside the gutter) is left alone, so editing still focuses normally.
-let lastCheckToggleAt = 0;
-function tryToggleCheckbox(e, clientX) {
-  const li = e.target.closest?.("li");
+let lastTouchToggleAt = 0;
+function tryToggleCheckbox(e, clientX, clientY, isTouch) {
+  // The checkbox is drawn as the li's ::before, pushed by negative margin into
+  // the <ul>'s left padding — but that padding strip belongs to the <ul> for
+  // hit-testing, not the <li>. So a tap even a hair off the tiny box lands on the
+  // <ul>, e.target.closest("li") is null, and we'd bail → editor focuses → the
+  // keyboard pops up. Instead of trusting the hit target, find the task-list row
+  // by the pointer's Y position, making the whole left gutter of that row a
+  // reliable target. Everything here stays LEFT of the text (x < rect.left), so
+  // caret placement / text selection is never affected.
+  let li = e.target.closest?.("li");
+  if (!li || !li.parentElement?.classList.contains("task-list")) {
+    li = null;
+    if (clientY != null) {
+      for (const cand of noteBody.querySelectorAll("ul.task-list > li")) {
+        const r = cand.getBoundingClientRect();
+        if (clientY >= r.top && clientY <= r.bottom) { li = cand; break; }
+      }
+    }
+  }
   if (!li || !noteBody.contains(li)) return;
   if (!li.parentElement?.classList.contains("task-list")) return;
   const rect = li.getBoundingClientRect();
   const em = parseFloat(getComputedStyle(li).fontSize) || 16;
-  if (clientX >= rect.left || clientX < rect.left - em * 2) return; // not in the checkbox gutter
+  // Gutter = the checkbox column just left of the text. Generous width (2.4em ≈
+  // one comfortable touch target) so a near-miss still ticks instead of focusing.
+  if (clientX >= rect.left || clientX < rect.left - em * 2.4) return;
   e.preventDefault();                       // stop focus → keyboard stays as-is
+  // A tap on a touch device fires touchstart AND a synthetic mousedown echo a
+  // moment later; suppress only that echo. A genuine SECOND touch is never
+  // suppressed, so rapidly ticking several boxes all register (the old global
+  // window swallowed fast successive taps). Real mouse clicks (desktop) never
+  // follow a touch, so they're never affected.
   const now = Date.now();
-  if (now - lastCheckToggleAt < 350) return; // ignore the synthetic-mouse duplicate after touch
-  lastCheckToggleAt = now;
+  if (!isTouch && now - lastTouchToggleAt < 700) return;
+  if (isTouch) lastTouchToggleAt = now;
   forceCheckpointBoundary(); // a checkbox tap is its own deliberate action, never merged with adjacent typing
   li.classList.toggle("done");
   scheduleSave();
 }
-noteBody.addEventListener("mousedown", e => tryToggleCheckbox(e, e.clientX));
+noteBody.addEventListener("mousedown", e => tryToggleCheckbox(e, e.clientX, e.clientY, false));
 noteBody.addEventListener("touchstart", e => {
-  if (e.touches[0]) tryToggleCheckbox(e, e.touches[0].clientX);
+  if (e.touches[0]) tryToggleCheckbox(e, e.touches[0].clientX, e.touches[0].clientY, true);
 }, { passive: false });
 
 // ── Copy note ─────────────────────────────────────────────────────────────────
