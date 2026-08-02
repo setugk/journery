@@ -2981,15 +2981,197 @@ function linkifyFragment(text) {
   return frag;
 }
 
+// Sanitize pasted HTML down to the structure Journery itself uses, so copy-paste
+// keeps a checklist a checklist (and lists/headings/bold/links/etc. survive)
+// while stripping everything unsafe or messy (scripts, styles, colours, spans,
+// classes we don't own). Whitelist approach: allowed tags keep their tag but
+// lose all attributes except a safe <a href> and the task-list / done classes;
+// disallowed-but-harmless tags are unwrapped to their contents; script/style
+// and other non-content tags are dropped whole (so their text can't leak).
+const PASTE_ALLOWED_TAGS = new Set(['P','DIV','BR','UL','OL','LI','STRONG','B','EM','I','U','S','STRIKE','A','CODE','PRE','BLOCKQUOTE','H1','H2','H3','HR']);
+const PASTE_DROP_TAGS = new Set(['SCRIPT','STYLE','HEAD','META','LINK','TITLE','NOSCRIPT','IFRAME','OBJECT','EMBED','SVG','MATH','TEMPLATE','IMG','VIDEO','AUDIO','CANVAS','FORM','INPUT','BUTTON','SELECT','TEXTAREA']);
+function pasteSafeHref(el) {
+  const h = (el.getAttribute('href') || '').trim();
+  return /^(https?:|mailto:|tel:)/i.test(h) ? h : null;
+}
+function sanitizePastedHtml(html) {
+  const tpl = document.createElement('template');
+  tpl.innerHTML = html;
+  const walk = (node) => {
+    [...node.childNodes].forEach(child => {
+      if (child.nodeType === Node.COMMENT_NODE) { child.remove(); return; }
+      if (child.nodeType !== Node.ELEMENT_NODE) return; // keep text nodes as-is
+      const el = child, tag = el.tagName;
+      if (PASTE_DROP_TAGS.has(tag)) { el.remove(); return; }
+      const isDeadLink = tag === 'A' && !pasteSafeHref(el);
+      if (!PASTE_ALLOWED_TAGS.has(tag) || isDeadLink) {
+        walk(el);                            // clean descendants, then unwrap this tag
+        el.replaceWith(...el.childNodes);
+        return;
+      }
+      const href = tag === 'A' ? pasteSafeHref(el) : null;
+      const keepClass = [];
+      if (tag === 'UL' && el.classList.contains('task-list')) keepClass.push('task-list');
+      if (tag === 'LI' && el.classList.contains('done')) keepClass.push('done');
+      while (el.attributes.length) el.removeAttribute(el.attributes[0].name);
+      if (href) el.setAttribute('href', href);
+      if (keepClass.length) el.className = keepClass.join(' ');
+      walk(el);
+    });
+  };
+  walk(tpl.content);
+  return tpl.content;
+}
+
+// ── Markdown as the reliable clipboard channel for list structure ─────────────
+// Firefox's clipboard mangles copied HTML badly: it drops the <ul>/<ol> wrapper
+// AND every class, handing the paste handler bare `<li>text</li>` — so whether a
+// list was a checklist, a bullet list, or numbered is simply GONE from the HTML,
+// unrecoverable. text/plain, by contrast, is never sanitized by any browser. So
+// on copy we also serialize lists to markdown (`- [ ] `, `- [x] `, `- `, `1. `)
+// into text/plain, and on paste we rebuild lists from that whenever the HTML is
+// degraded/missing. Bonus: pasting markdown checklists from anywhere now works.
+
+function liOwnText(li) { // an <li>'s own text, excluding any nested sub-list
+  let s = "";
+  li.childNodes.forEach(n => {
+    if (n.nodeType === Node.ELEMENT_NODE && (n.tagName === "UL" || n.tagName === "OL")) return;
+    s += n.textContent;
+  });
+  return s.replace(/\s+/g, " ").trim();
+}
+function domToMarkdown(root) {
+  const out = [];
+  const walkList = (listEl, depth) => {
+    const ordered = listEl.tagName === "OL";
+    const task = listEl.classList.contains("task-list");
+    let n = 1;
+    [...listEl.children].forEach(li => {
+      if (li.tagName !== "LI") return;
+      const marker = task ? (li.classList.contains("done") ? "- [x] " : "- [ ] ")
+                   : ordered ? `${n++}. ` : "- ";
+      out.push("  ".repeat(depth) + marker + liOwnText(li));
+      [...li.children].forEach(c => {
+        if (c.tagName === "UL" || c.tagName === "OL") walkList(c, depth + 1);
+      });
+    });
+  };
+  [...root.childNodes].forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) { if (node.textContent.trim()) out.push(node.textContent); return; }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    if (node.tagName === "UL" || node.tagName === "OL") walkList(node, 0);
+    else if (node.tagName === "BR") out.push("");
+    else out.push(node.textContent);
+  });
+  return out.join("\n");
+}
+
+const MD_LIST_LINE = /^([ \t]*)([-*+]|\d+[.)])[ \t]+(\[([ xX])\][ \t]+)?([\s\S]*)$/;
+function parseMdLine(line) {
+  const m = line.match(MD_LIST_LINE);
+  if (!m) return null;
+  return {
+    indent: m[1].replace(/\t/g, "  ").length,
+    ordered: /\d/.test(m[2]),
+    checkbox: !!m[3],
+    checked: !!m[3] && /x/i.test(m[4]),
+    text: m[5],
+  };
+}
+function markdownToFragment(text) {
+  const lines = text.split(/\r\n|\r|\n/);
+  const frag = document.createDocumentFragment();
+  const makeList = (it) => {
+    const list = document.createElement(it.ordered ? "ol" : "ul");
+    if (it.checkbox) list.className = "task-list";
+    return list;
+  };
+  let i = 0;
+  while (i < lines.length) {
+    if (!parseMdLine(lines[i])) {                    // a non-list line
+      const div = document.createElement("div");
+      if (lines[i] === "") div.appendChild(document.createElement("br"));
+      else div.appendChild(linkifyFragment(lines[i]));
+      frag.appendChild(div);
+      i++;
+      continue;
+    }
+    const items = [];                                // gather a contiguous list block
+    while (i < lines.length) {
+      const it = parseMdLine(lines[i]);
+      if (!it) break;
+      items.push(it); i++;
+    }
+    const root = makeList(items[0]);
+    const stack = [{ indent: items[0].indent, list: root, li: null }];
+    for (const it of items) {
+      let top = stack[stack.length - 1];
+      if (it.indent > top.indent && top.li) {        // deeper → nest under previous <li>
+        const sub = makeList(it);
+        top.li.appendChild(sub);
+        stack.push({ indent: it.indent, list: sub, li: null });
+        top = stack[stack.length - 1];
+      } else {
+        while (stack.length > 1 && it.indent < top.indent) { stack.pop(); top = stack[stack.length - 1]; }
+      }
+      const li = document.createElement("li");
+      if (it.checkbox && it.checked) li.className = "done";
+      li.appendChild(linkifyFragment(it.text));
+      top.list.appendChild(li);
+      top.li = li;
+    }
+    frag.appendChild(root);
+  }
+  return frag;
+}
+// Firefox degrades a copied list to top-level <li> with no <ul>/<ol> wrapper.
+function htmlFragmentIsWellFormed(frag) {
+  for (const li of frag.querySelectorAll("li")) {
+    const p = li.parentElement;
+    if (!p || (p.tagName !== "UL" && p.tagName !== "OL")) return false;
+  }
+  return true;
+}
+
 noteBody.addEventListener("paste", e => {
-  e.preventDefault();
+  const html = e.clipboardData.getData("text/html");
   const text = e.clipboardData.getData("text/plain");
-  if (!text) return;
+  if (!html.trim() && !text) return;      // nothing to paste — let the default no-op
+  e.preventDefault();
   const sel = window.getSelection();
   if (!sel || !sel.rangeCount) return;
   // Pasted content should undo as its own step, never merged with whatever
   // typing happened right before it.
   forceCheckpointBoundary();
+  let frag = null;
+  // 1. Intra-app copy-paste: if this paste matches what we last copied inside the
+  //    editor, use our OWN stored clean HTML. Firefox (and some extensions) refuse
+  //    to let a page override the clipboard on copy — so setData is ignored and the
+  //    OS clipboard keeps Firefox's mangled, classless, wrapper-less <li> soup.
+  //    Our in-memory buffer never touches the OS clipboard, so it's immune. Match
+  //    on the plain text so an unrelated external paste never picks it up.
+  const normClip = (s) => (s || "").replace(/\r\n/g, "\n").trim();
+  if (internalClipboard && text && normClip(text) === normClip(internalClipboard.text)) {
+    frag = sanitizePastedHtml(internalClipboard.html);
+    if (frag && !frag.childNodes.length) frag = null;
+  }
+  // 2. Otherwise prefer the clipboard's structured HTML (sanitized). When that's
+  //    degraded (Firefox → orphan <li>) or lost the checklist class but the text
+  //    carries markdown list markers, rebuild from the text — never sanitized.
+  if (!frag) {
+    frag = html.trim() ? sanitizePastedHtml(html) : null;
+    if (frag && !frag.childNodes.length) frag = null;
+    // Only reconstruct from markdown when the text actually has list markers — so a
+    // plain (non-list) paste still goes through the inline linkify path and isn't
+    // wrapped in block <div>s.
+    const textHasListMarkers = /(^|\n)[ \t]*([-*+]|\d+[.)])[ \t]+/.test(text);
+    const textHasChecklist = /(^|\n)[ \t]*[-*+][ \t]+\[[ xX]\]/.test(text);
+    const htmlHasTaskList = !!(frag && frag.querySelector("ul.task-list"));
+    const preferMarkdown = textHasListMarkers && (!frag || !htmlFragmentIsWellFormed(frag) || (textHasChecklist && !htmlHasTaskList));
+    if (preferMarkdown) frag = markdownToFragment(text);
+  }
+  // 3. Last resort: inline linkified plain text.
+  if (!frag || !frag.childNodes.length) frag = linkifyFragment(text || "");
   // Manual Range insertion, not execCommand('insertHTML') — Chrome's insertHTML
   // auto-wraps orphaned top-level text-node siblings into separate <div>s while
   // leaving <a> tags unwrapped, fragmenting a single pasted line into multiple
@@ -2998,7 +3180,6 @@ noteBody.addEventListener("paste", e => {
   // DOM surgery elsewhere in this file.
   const range = sel.getRangeAt(0);
   range.deleteContents();
-  const frag = linkifyFragment(text);
   const lastNode = frag.lastChild;
   range.insertNode(frag);
   if (lastNode) {
@@ -3012,6 +3193,58 @@ noteBody.addEventListener("paste", e => {
   // Manual Range insertion doesn't fire `input`, so the placeholder-hide that
   // normally runs there is skipped — update it explicitly or the "Start
   // writing…" hint overlaps the pasted text until a reload.
+  updateNoteBodyPlaceholder();
+  scheduleSave();
+});
+
+// Own the copy/cut side too. We do TWO things:
+//  (a) stash a clean clone of the selection in an in-memory buffer, and
+//  (b) try to write clean HTML + markdown to the OS clipboard.
+// (b) is best-effort: Firefox — and privacy extensions like the ones in Setu's
+// profile — refuse to let a page override the clipboard on copy, so setData is
+// silently ignored and the OS clipboard keeps Firefox's mangled classless <li>
+// soup. (a) is the reliable path: the buffer never touches the OS clipboard, so
+// the paste handler can recover the real structure for in-app copy-paste. The
+// copy event still FIRES (it just can't override the clipboard), which is all we
+// need to capture the buffer.
+let internalClipboard = null;  // { text, html } from the last in-editor copy/cut
+function writeSelectionToClipboard(e) {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return false;
+  const range = sel.getRangeAt(0);
+  if (!noteBody.contains(range.commonAncestorContainer)) return false;
+  const holder = document.createElement('div');
+  holder.appendChild(range.cloneContents());
+  // cloneContents returns only the CONTENTS between the range boundaries and omits
+  // the common-ancestor <ul>/<ol> wrapper for a partial text selection across list
+  // items (spec-correct, happens in every engine) — leaving orphan <li> that would
+  // paste as bullets and lose the checklist. Re-wrap them using the real source
+  // list's tag + class (keeps ul.task-list / ol / li.done).
+  if ([...holder.childNodes].some(n => n.nodeType === 1 && n.tagName === "LI")) {
+    let n = range.commonAncestorContainer;
+    n = n.nodeType === 1 ? n : n.parentElement;
+    const srcList = n && n.closest ? n.closest("ul, ol") : null;
+    if (srcList) {
+      const wrap = document.createElement(srcList.tagName);
+      if (srcList.className) wrap.className = srcList.className;
+      while (holder.firstChild) wrap.appendChild(holder.firstChild);
+      holder.appendChild(wrap);
+    }
+  }
+  const cleanHtml = holder.innerHTML;
+  internalClipboard = { text: sel.toString(), html: cleanHtml };
+  try {
+    e.clipboardData.setData('text/html', cleanHtml);
+    e.clipboardData.setData('text/plain', domToMarkdown(holder) || sel.toString());
+    e.preventDefault();
+  } catch (_) { /* some browsers/extensions block the override — buffer still set */ }
+  return true;
+}
+noteBody.addEventListener("copy", e => { writeSelectionToClipboard(e); });
+noteBody.addEventListener("cut", e => {
+  if (!writeSelectionToClipboard(e)) return;
+  forceCheckpointBoundary();
+  window.getSelection().getRangeAt(0).deleteContents();
   updateNoteBodyPlaceholder();
   scheduleSave();
 });
