@@ -428,14 +428,14 @@ const SETTINGS_SECTION_LABELS = {
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
-  { version: "1.30", date: "July 2026", changes: [
+  { version: "1.30", date: "Jul 31, 2026", changes: [
     "Drag and drop to move things (on desktop) — drag a folder onto another folder to nest it, or drag a note onto a folder to move it or onto a tag to add that tag. Each move shows an Undo. (On phones/tablets, the move picker is unchanged.)",
     "Your display settings now follow you across devices — theme, folder & date visibility, date display, sort order, and Recents range are saved to your account, so a new device or sign-in keeps them instead of resetting.",
     "Tidier Settings — the one-item “Sidebar” tab is folded into General, and the categories are ordered more sensibly.",
     "Right-click a folder or a tag in the sidebar for quick options — rename, move, delete, pin, share — the same way you can right-click a note.",
     "Bug fixes & improvements",
   ]},
-  { version: "1.29", date: "July 2026", changes: [
+  { version: "1.29", date: "Jul 25, 2026", changes: [
     "Share a whole tag — open a tag, tap the share icon, and get one public link to every note with that tag (a read-only index anyone can browse). Add the tag to a note to publish it, remove it to un-publish. Expiry + revoke work just like note links.",
     "Cleaner, more balanced Share dialog",
     "Tidier tag view — Share, Sort, and Select now live in a single ⋯ menu, with “+” always at hand",
@@ -459,71 +459,71 @@ const CHANGELOG = [
     "An expanded sidebar section (Pinned, Tags, Timeline) now reads a touch stronger, so it's clearer which one is open",
     "Bug fixes & improvements",
   ]},
-  { version: "1.28", date: "July 2026", changes: [
+  { version: "1.28", date: "Jul 25, 2026", changes: [
     "Share any note with a public link — “Share…” in the ⋯ menu. Anyone with the link can read it (no sign-in), it opens as a clean standalone page, and you can set it to auto-expire (1/7/30 days) or turn it off any time",
     "Bug fixes & improvements",
   ]},
-  { version: "1.27", date: "July 2026", changes: [
+  { version: "1.27", date: "Jul 17, 2026", changes: [
     "Search as you type — results appear right under the search bar, no separate page",
     "Notes save faster after you stop typing, and save right away when you leave the app",
     "A note you have open now updates live when you edit it on another device",
     "Markdown shortcuts — lists (“* ”, “- ”, “1. ”) and the “---” divider — now work on any line, including pasted or imported notes, not just freshly typed ones",
     "Bug fixes & improvements",
   ]},
-  { version: "1.26", date: "July 2026", changes: [
+  { version: "1.26", date: "Jul 17, 2026", changes: [
     "The formatting bar now highlights the styles active where your cursor is (bold, heading, list, etc.)",
     "Recents is now the default view when you open the app",
     "Refreshed logo",
     "Bug fixes & improvements",
   ]},
-  { version: "1.25", date: "July 2026", changes: [
+  { version: "1.25", date: "Jul 16, 2026", changes: [
     "New Journery logo — in the app, on the tab favicon, and as the home-screen / PWA icon",
     "Create a subfolder right from the Move-to-folder dialog — expand any folder to add one",
     "Bug fixes & improvements",
   ]},
-  { version: "1.24", date: "July 2026", changes: [
+  { version: "1.24", date: "Jul 16, 2026", changes: [
     "Focus mode on the web — hide both sidebars for distraction-free writing (⌘\\ or the toolbar button)",
     "Bug fixes & improvements",
   ]},
-  { version: "1.23", date: "July 2026", changes: [
+  { version: "1.23", date: "Jul 16, 2026", changes: [
     "Turn an existing line into a list by typing “* ” or “1. ” in front of it",
     "Create a new folder right from the Move-to-folder dialog",
     "Bug fixes & improvements",
   ]},
-  { version: "1.22", date: "July 2026", changes: [
+  { version: "1.22", date: "Jul 16, 2026", changes: [
     "Works offline — opens and shows your latest notes without a connection (read-only for now)",
     "Bug fixes & improvements",
   ]},
-  { version: "1.20", date: "July 2026", changes: [
+  { version: "1.20", date: "Jul 15, 2026", changes: [
     "Export your notes as Markdown files — take them anywhere, no lock-in",
     "Larger, clearer note titles",
     "Bug fixes & improvements",
   ]},
-  { version: "1.19", date: "July 2026", changes: [
+  { version: "1.19", date: "Jul 15, 2026", changes: [
     "Show or hide the created & edited dates on a note (Settings → General)",
     "Bug fixes & improvements",
   ]},
-  { version: "1.18", date: "July 2026", changes: [
+  { version: "1.18", date: "Jul 14, 2026", changes: [
     "Show or hide the formatting bar with the new toolbar button — a cleaner writing space",
     "Tick off checklist items without the keyboard popping up",
     "This What's New page in Settings",
     "Bug fixes & improvements",
   ]},
-  { version: "1.16", date: "July 2026", changes: [
+  { version: "1.16", date: "Jul 8, 2026", changes: [
     "Checklists — tap the box to tick things off",
     "Nested lists: Tab to indent, with bullets that change shape by depth",
     "Bug fixes & improvements",
   ]},
-  { version: "1.15", date: "July 2026", changes: [
+  { version: "1.15", date: "Jul 8, 2026", changes: [
     "Pull quotes and code blocks in the editor",
     "Bug fixes & improvements",
   ]},
-  { version: "1.14", date: "July 2026", changes: [
+  { version: "1.14", date: "Jul 7, 2026", changes: [
     "Add links to your text",
     "Smoother typing and scrolling on iPhone",
     "Bug fixes & improvements",
   ]},
-  { version: "1.10", date: "July 2026", changes: [
+  { version: "1.10", date: "Jul 6, 2026", changes: [
     "Trash with 30-day recovery for deleted notes",
     "Redesigned full-screen Settings",
     "Bug fixes & improvements",
