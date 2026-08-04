@@ -3,6 +3,7 @@ import io
 import re
 import hmac
 import json
+import secrets
 import zipfile
 from html.parser import HTMLParser
 from functools import wraps
@@ -30,10 +31,15 @@ DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 # traffic. Never set this on prod/beta (self-hosted instances get no
 # analytics of any kind — see README's privacy promise). Empty = no beacon.
 CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
-APP_VERSION     = "1.30.12"
+APP_VERSION     = "1.30.21"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
+# Secret for signing the per-token "this visitor unlocked this password-protected
+# share" cookie. Set SECRET_KEY to keep unlock cookies valid across restarts; the
+# random fallback just means a container restart re-prompts for the password
+# (harmless for a share gate).
+SHARE_SECRET    = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 
 
 def requires_auth(f):
@@ -484,10 +490,20 @@ def sync():
 def _share_payload(share):
     if not share:
         return {"shared": False}
-    return {"shared": True, "token": share["token"], "expires_at": share.get("expires_at")}
+    return {"shared": True, "token": share["token"], "expires_at": share.get("expires_at"),
+            "has_password": bool(share.get("password_hash") or share.get("has_password"))}
 
 
 def _expires_at_from(data):
+    # Custom absolute date wins: "YYYY-MM-DD" → end of that day, UTC.
+    raw = data.get("expires_at")
+    if raw:
+        try:
+            d = datetime.strptime(str(raw)[:10], "%Y-%m-%d").replace(
+                hour=23, minute=59, second=59, tzinfo=timezone.utc)
+            return d.isoformat()
+        except (TypeError, ValueError):
+            pass
     days = data.get("expires_in_days")
     if days in (None, "", 0, "0"):
         return None
@@ -496,6 +512,18 @@ def _expires_at_from(data):
         return (datetime.now(timezone.utc) + timedelta(days=d)).isoformat() if d > 0 else None
     except (TypeError, ValueError):
         return None
+
+
+def _password_from(data):
+    """The `password` argument for db.set_share/set_tag_share, from a PUT payload:
+    remove_password → clear (None), a non-empty password → set it, otherwise leave
+    the existing password untouched (db.KEEP_PASSWORD)."""
+    if data.get("remove_password"):
+        return None
+    pw = data.get("password")
+    if pw:
+        return str(pw)
+    return db.KEEP_PASSWORD
 
 
 @app.route("/api/notes/<note_id>/share", methods=["GET"])
@@ -510,7 +538,7 @@ def put_share(note_id):
     if not db.get_note(note_id):
         return jsonify({"error": "not found"}), 404
     data = request.get_json(silent=True) or {}
-    return jsonify(_share_payload(db.set_share(note_id, _expires_at_from(data))))
+    return jsonify(_share_payload(db.set_share(note_id, _expires_at_from(data), _password_from(data))))
 
 
 @app.route("/api/notes/<note_id>/share", methods=["DELETE"])
@@ -530,7 +558,7 @@ def tag_share_status(tag):
 @requires_auth
 def tag_share_set(tag):
     data = request.get_json(silent=True) or {}
-    return jsonify(_share_payload(db.set_tag_share(tag, _expires_at_from(data))))
+    return jsonify(_share_payload(db.set_tag_share(tag, _expires_at_from(data), _password_from(data))))
 
 
 @app.route("/api/tags/<tag>/share", methods=["DELETE"])
@@ -555,14 +583,46 @@ def _render_shared(**kw):
     kw.setdefault("note", None)
     kw.setdefault("collection", None)
     kw.setdefault("back", None)
+    kw.setdefault("password_prompt", None)
     return render_template("shared.html", app_css=_app_css(), **kw)
 
 
-@app.route("/shared/<token>")
+def _unlock_value(token):
+    return hmac.new(SHARE_SECRET.encode(), ("unlock:" + token).encode(), "sha256").hexdigest()
+
+
+def _is_unlocked(token):
+    return hmac.compare_digest(request.cookies.get("jshare_" + token, ""), _unlock_value(token))
+
+
+def _password_gate(token, password_hash):
+    """For a password-protected share: returns a Response to send instead of the
+    content (the unlock form, or a redirect that sets the unlock cookie on success),
+    or None when the visitor is already unlocked / no password is set."""
+    if not password_hash or _is_unlocked(token):
+        return None
+    error = False
+    if request.method == "POST":
+        if db.verify_share_password(request.form.get("password", ""), password_hash):
+            resp = redirect(request.path)
+            resp.set_cookie("jshare_" + token, _unlock_value(token),
+                            max_age=30 * 24 * 3600, httponly=True, samesite="Lax")
+            return resp
+        error = True
+    return _render_shared(password_prompt={"action": request.path, "error": error})
+
+
+@app.route("/shared/<token>", methods=["GET", "POST"])
 def shared_view(token):
     # PUBLIC — no @requires_auth. Cloudflare Access must BYPASS /shared/*.
     # Self-contained page (inlined CSS, rendered server-side), so no other endpoint
     # is public and the data never rides on an open API.
+    auth = db.get_share_auth(token)
+    if not auth:
+        return _render_shared()
+    gate = _password_gate(token, auth["password_hash"])
+    if gate is not None:
+        return gate
     r = db.resolve_share(token)
     if not r:
         return _render_shared()
@@ -571,9 +631,14 @@ def shared_view(token):
     return _render_shared(collection={"tag": r["tag"], "notes": r["notes"], "token": token})
 
 
-@app.route("/shared/<token>/<note_id>")
+@app.route("/shared/<token>/<note_id>", methods=["GET", "POST"])
 def shared_note_in_tag(token, note_id):
     # A single note viewed within a tag share (live membership check).
+    auth = db.get_share_auth(token)
+    if auth:
+        gate = _password_gate(token, auth["password_hash"])
+        if gate is not None:
+            return gate
     r = db.get_shared_tag_note(token, note_id)
     if not r:
         return _render_shared()

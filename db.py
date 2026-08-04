@@ -1,6 +1,8 @@
 import sqlite3
 import os
 import uuid
+import hmac
+import hashlib
 import secrets
 import threading
 import time
@@ -20,7 +22,7 @@ def get_conn():
     return conn
 
 
-_SCHEMA_VERSION = 5
+_SCHEMA_VERSION = 6
 
 
 def init_db():
@@ -107,6 +109,14 @@ def init_db():
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_tagshares_tag ON tag_shares(tag)")
             conn.execute("UPDATE schema_version SET version = 5")
+
+        if current < 6:
+            # Optional password protection for public share links. NULL = open link
+            # (unchanged behavior); a value is a pbkdf2 hash the /shared page checks
+            # before rendering any note content.
+            conn.execute("ALTER TABLE shares ADD COLUMN password_hash TEXT")
+            conn.execute("ALTER TABLE tag_shares ADD COLUMN password_hash TEXT")
+            conn.execute("UPDATE schema_version SET version = 6")
 
     conn.close()
     purge_old_trash()
@@ -601,6 +611,41 @@ def get_sync_version():
 # One share per note. The token is the public, unguessable key; expires_at is an
 # ISO timestamp or None (never expires). Deleting the row revokes the link.
 
+# Sentinel so callers can update expiry WITHOUT touching the password (the common
+# case), distinct from explicitly setting a new password or clearing it (None).
+KEEP_PASSWORD = object()
+
+
+def hash_share_password(pw):
+    """Salted pbkdf2 hash, stdlib-only (no werkzeug dep). Format:
+    pbkdf2$<iters>$<salt_hex>$<hash_hex>."""
+    salt = secrets.token_bytes(16)
+    iters = 200_000
+    dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), salt, iters)
+    return f"pbkdf2${iters}${salt.hex()}${dk.hex()}"
+
+
+def verify_share_password(pw, stored):
+    if not stored or pw is None:
+        return False
+    try:
+        algo, iters, salt_hex, hash_hex = stored.split("$")
+        dk = hashlib.pbkdf2_hmac("sha256", pw.encode("utf-8"), bytes.fromhex(salt_hex), int(iters))
+    except (ValueError, AttributeError):
+        return False
+    return hmac.compare_digest(dk.hex(), hash_hex)
+
+
+def _password_hash_for(password):
+    """Translate a set_share/set_tag_share `password` argument into the stored
+    value: KEEP_PASSWORD → unchanged, None/"" → cleared, a string → hashed."""
+    if password is KEEP_PASSWORD:
+        return KEEP_PASSWORD
+    if not password:
+        return None
+    return hash_share_password(password)
+
+
 def get_share(note_id):
     conn = get_conn()
     row = conn.execute("SELECT * FROM shares WHERE note_id=?", (note_id,)).fetchone()
@@ -608,23 +653,28 @@ def get_share(note_id):
     return dict(row) if row else None
 
 
-def set_share(note_id, expires_at):
+def set_share(note_id, expires_at, password=KEEP_PASSWORD):
     """Create the share (new token) or update the existing one's expiry in place
-    (keeps the link stable). Returns {token, expires_at}."""
+    (keeps the link stable). `password` is KEEP_PASSWORD (leave as-is), None/"" to
+    clear, or a plaintext string to (re)set. Returns {token, expires_at, has_password}."""
+    pw_hash = _password_hash_for(password)
     conn = get_conn()
     with conn:
-        row = conn.execute("SELECT token FROM shares WHERE note_id=?", (note_id,)).fetchone()
+        row = conn.execute("SELECT token, password_hash FROM shares WHERE note_id=?", (note_id,)).fetchone()
         if row:
             token = row["token"]
-            conn.execute("UPDATE shares SET expires_at=? WHERE token=?", (expires_at, token))
+            stored = row["password_hash"] if pw_hash is KEEP_PASSWORD else pw_hash
+            conn.execute("UPDATE shares SET expires_at=?, password_hash=? WHERE token=?",
+                         (expires_at, stored, token))
         else:
             token = secrets.token_urlsafe(16)
+            stored = None if pw_hash is KEEP_PASSWORD else pw_hash
             conn.execute(
-                "INSERT INTO shares (token, note_id, created_at, expires_at) VALUES (?,?,?,?)",
-                (token, note_id, now(), expires_at),
+                "INSERT INTO shares (token, note_id, created_at, expires_at, password_hash) VALUES (?,?,?,?,?)",
+                (token, note_id, now(), expires_at, stored),
             )
     conn.close()
-    return {"token": token, "expires_at": expires_at}
+    return {"token": token, "expires_at": expires_at, "has_password": bool(stored)}
 
 
 def delete_share(note_id):
@@ -669,21 +719,25 @@ def get_tag_share(tag):
     return dict(row) if row else None
 
 
-def set_tag_share(tag, expires_at):
+def set_tag_share(tag, expires_at, password=KEEP_PASSWORD):
+    pw_hash = _password_hash_for(password)
     conn = get_conn()
     with conn:
-        row = conn.execute("SELECT token FROM tag_shares WHERE tag=?", (tag,)).fetchone()
+        row = conn.execute("SELECT token, password_hash FROM tag_shares WHERE tag=?", (tag,)).fetchone()
         if row:
             token = row["token"]
-            conn.execute("UPDATE tag_shares SET expires_at=? WHERE token=?", (expires_at, token))
+            stored = row["password_hash"] if pw_hash is KEEP_PASSWORD else pw_hash
+            conn.execute("UPDATE tag_shares SET expires_at=?, password_hash=? WHERE token=?",
+                         (expires_at, stored, token))
         else:
             token = secrets.token_urlsafe(16)
+            stored = None if pw_hash is KEEP_PASSWORD else pw_hash
             conn.execute(
-                "INSERT INTO tag_shares (token, tag, created_at, expires_at) VALUES (?,?,?,?)",
-                (token, tag, now(), expires_at),
+                "INSERT INTO tag_shares (token, tag, created_at, expires_at, password_hash) VALUES (?,?,?,?,?)",
+                (token, tag, now(), expires_at, stored),
             )
     conn.close()
-    return {"token": token, "expires_at": expires_at}
+    return {"token": token, "expires_at": expires_at, "has_password": bool(stored)}
 
 
 def delete_tag_share(tag):
@@ -705,6 +759,25 @@ def resolve_share(token):
     if row and not (row["expires_at"] and row["expires_at"] < now()):
         return {"kind": "tag", "tag": row["tag"], "notes": get_notes(tag=row["tag"])}
     return None
+
+
+def get_share_auth(token):
+    """Lightweight lookup for the public route's gate: is this token valid (exists
+    and not expired), and does it require a password? Returns
+    {"kind", "password_hash"} or None — does NOT fetch note content (that's
+    resolve_share's job, called only after the password check passes)."""
+    conn = get_conn()
+    row = conn.execute("SELECT expires_at, password_hash FROM shares WHERE token=?", (token,)).fetchone()
+    if row:
+        conn.close()
+        if row["expires_at"] and row["expires_at"] < now():
+            return None
+        return {"kind": "note", "password_hash": row["password_hash"]}
+    row = conn.execute("SELECT expires_at, password_hash FROM tag_shares WHERE token=?", (token,)).fetchone()
+    conn.close()
+    if not row or (row["expires_at"] and row["expires_at"] < now()):
+        return None
+    return {"kind": "tag", "password_hash": row["password_hash"]}
 
 
 def get_shared_tag_note(token, note_id):

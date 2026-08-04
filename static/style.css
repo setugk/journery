@@ -145,7 +145,7 @@ body {
 .sidebar-header-actions { display: flex; gap: 4px; flex-shrink: 0; }
 
 .sidebar-search {
-  padding: 12px 12px 8px;
+  padding: 12px 12px 8px 24px;
   display: flex; align-items: center; gap: 8px;
   border-bottom: 1px solid var(--divider);
   flex-shrink: 0;
@@ -327,10 +327,14 @@ body {
 
 /* Non-interactive section label (Folders) */
 .sidebar-section-label {
-  padding: 8px 16px 8px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 8px 8px 16px;
   font-size: var(--fs-10); font-weight: 700; letter-spacing: 0.06em;
   text-transform: uppercase; color: var(--text-faint);
 }
+/* Contextual "new folder" action, tucked into the Folders section header. */
+.folders-add-btn { width: 24px; height: 24px; }
+.folders-add-btn svg { width: 14px; height: 14px; }
 
 /* ── Timeline year items ─────────────────────────────────────────────── */
 
@@ -634,7 +638,7 @@ body {
   position: relative;
   height: 52px;
   padding: 0 12px 0 8px;
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; gap: 8px;   /* match the format bar's icon gap */
   flex-shrink: 0;
   border-bottom: 1px solid var(--divider);
 }
@@ -814,7 +818,12 @@ body {
   top: 0;
   z-index: 5;
   display: flex;
-  align-items: center;
+  /* Anchor the controls to the bar's BOTTOM edge so, as max-height animates, they
+     travel up/down WITH that edge (clipped by overflow:hidden) — a real slide. With
+     align-items:center they'd instead unfold from the middle, and the old opacity
+     fade made that read as a fade-out rather than a slide. (Separators re-center
+     via align-self below.) */
+  align-items: flex-end;
   flex-shrink: 0;
   gap: 4px;
   background: var(--surface);
@@ -824,20 +833,22 @@ body {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;      /* Firefox */
   -ms-overflow-style: none;   /* old Edge */
-  /* Collapsed by default — the header's Formatting toggle drops it down. It
-     animates open from behind the header (max-height) rather than being always
-     on, which is visual noise while writing. */
+  /* Collapsed by default — the Formatting toggle drops it straight down. The
+     height AND the vertical padding animate together (0 → full), so the controls
+     travel with the bar's bottom edge the whole way — a clean slide, no fade
+     (opacity never changes) and no dead first-half where only empty padding grows.
+     Left/right padding stays STATIC (animating it drifted the bar diagonally, and
+     desktop derives it from the writing column anyway). */
   max-height: 0;
   padding: 0 8px 0 12px;
-  opacity: 0;
   border-bottom-width: 0;
   pointer-events: none;
-  transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.2s ease, border-bottom-width 0.25s ease;
+  transition: max-height 0.25s ease, padding-top 0.25s ease, padding-bottom 0.25s ease, border-bottom-width 0.25s ease;
 }
 .sticky-format-bar.open {
   max-height: 56px;
-  padding: 12px 8px 12px 12px;
-  opacity: 1;
+  padding-top: 12px;
+  padding-bottom: 12px;
   border-bottom-width: 1px;
   pointer-events: auto;
 }
@@ -849,6 +860,24 @@ body {
   content: '';
   flex: none;
   width: 8px;
+}
+/* Desktop: full-width bar, but the controls spread edge-to-edge (space-between)
+   across the same horizontal band as the note body — 28px in on each side, the
+   note title/body's own padding — so the first and last controls line up with
+   the text's left and right edges, symmetric on both sides. The trailing spacer
+   is a mobile scroll-edge affordance; drop it here. */
+@media (min-width: 769px) {
+  .sticky-format-bar {
+    gap: 8px;
+    justify-content: space-between;
+    /* Inset to the 750px writing column's text edges: half the leftover width
+       plus the body's own 28px padding. Falls back to a flat 28px when the
+       editor pane is narrower than the column (max() keeps padding ≥ 28px), so
+       the first/last controls always line up with the note text on both sides. */
+    padding-left: max(28px, (100% - 750px) / 2 + 28px);
+    padding-right: max(28px, (100% - 750px) / 2 + 28px);
+  }
+  .sticky-format-bar::after { display: none; }
 }
 /* Header Formatting toggle — highlighted while the bar is open. */
 #format-toggle-btn.active { color: var(--accent); background: var(--surface-2); }
@@ -882,7 +911,9 @@ body {
 /* The floating desktop bar is always dark regardless of theme, but the
    sticky touch bar uses the actual theme surface — needs a theme-aware
    separator instead of the white-based one above. */
-.sticky-format-bar .fmt-sep { background: var(--border); }
+/* The bar bottom-anchors its children (for the slide animation); keep the short
+   separators optically centered against the taller icon buttons. */
+.sticky-format-bar .fmt-sep { background: var(--border); align-self: center; }
 
 .note-body-wrap { position: relative; }
 .note-body-placeholder {
@@ -1044,6 +1075,17 @@ select.share-field-control {
 input.share-field-control { color: var(--text-2); }
 .share-expiry-note { font-size: var(--fs-12); color: var(--text-muted); margin: 8px 0 0; }
 .share-expiry-note.hidden { display: none; }
+.share-date-input { margin-top: 8px; color: var(--text-2); }
+.share-password-note {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-size: var(--fs-12); color: var(--text-muted); margin: 8px 0 0;
+}
+.share-date-input.hidden, .share-password-note.hidden { display: none; }
+.share-inline-link {
+  background: none; border: none; padding: 0; font-family: inherit;
+  font-size: var(--fs-12); font-weight: 600; color: var(--danger); cursor: pointer;
+}
+.share-inline-link:hover { text-decoration: underline; }
 .share-btn {
   width: 100%; padding: 12px; border-radius: 8px; margin-top: 8px;
   font-size: var(--fs-14); font-family: inherit; font-weight: 600; cursor: pointer;
@@ -1128,6 +1170,26 @@ body.note-view-mode .app { display: none; }
    editor-only sizing so it reads as a document, not a text field. */
 .note-view .note-body-input { min-height: 0; padding: 0; border-top: none; }
 .note-view-empty { color: var(--text-muted); font-size: var(--fs-15); }
+
+/* Password gate for a protected share link */
+.share-lock { max-width: 340px; margin: 8vh auto 0; text-align: center; }
+.share-lock-icon { color: var(--text-muted); margin-bottom: 14px; }
+.share-lock h1 { font-size: var(--fs-22); margin-bottom: 8px; }
+.share-lock .note-view-empty { font-size: var(--fs-14); }
+.share-lock-form { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+.share-lock-input {
+  width: 100%; padding: 12px 14px; border-radius: 8px;
+  background: var(--surface); border: 1.5px solid var(--border);
+  font-size: var(--fs-15); font-family: inherit; color: var(--text); outline: none;
+}
+.share-lock-input:focus { border-color: var(--border-mid); }
+.share-lock-error { font-size: var(--fs-13); color: var(--danger); margin: 0; }
+.share-lock-btn {
+  width: 100%; padding: 12px; border-radius: 8px; border: none;
+  background: var(--accent); color: var(--accent-fg);
+  font-size: var(--fs-15); font-family: inherit; font-weight: 600; cursor: pointer;
+}
+.share-lock-btn:hover { opacity: 0.9; }
 
 .tags-chips { display: flex; flex-wrap: wrap; gap: 4px; }
 .editor-tag-chip {
@@ -1739,13 +1801,19 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   .app.focus-mode .sidebar,
   .app.focus-mode .notes-pane { display: none; }
 
-  /* With the side panes gone the editor fills the window — too wide to write
-     in comfortably — so center the text in a fixed writing column. */
-  .app.focus-mode .note-title-input,
-  .app.focus-mode .note-tags-row,
-  .app.focus-mode .note-dates,
-  .app.focus-mode .note-body-wrap {
-    max-width: 760px;
+  /* In focus mode "go back" would just land on a blank editor — hide the chevron
+     (the panel/reveal button is the way out of focus). */
+  .app.focus-mode #editor-back-btn { display: none; }
+
+  /* Cap the writing column at 750px in BOTH modes (not just focus) — a
+     comfortable reading measure whether the side panes are showing or not. The
+     bar's own inset (below) is derived from this same width, so the controls
+     stay aligned to the text. */
+  .note-title-input,
+  .note-tags-row,
+  .note-dates,
+  .note-body-wrap {
+    max-width: 750px;
     margin-left: auto; margin-right: auto;
     width: 100%;
   }
@@ -1800,6 +1868,10 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   .note-body-input { flex: none; min-height: calc(100dvh - 210px); padding: 16px 20px max(env(safe-area-inset-bottom), 24px); font-size: var(--fs-17); line-height: 1.75; }
   .note-body-placeholder { top: 14px; left: 20px; right: 20px; font-size: var(--fs-17); line-height: 1.75; }
 
+  /* Line the search icon up under the header's back chevron. The chevron glyph
+     sits at 8px (header padding) + (44px tap target − 18px glyph)/2 = 21px in;
+     the search bar's default 12px inset read as misaligned (icon too far left). */
+  .notes-pane-search { padding-left: 21px; }
   .notes-pane-search input { font-size: var(--fs-16); }
 
   input, textarea, .modal-input { font-size: var(--fs-16); }
@@ -1807,11 +1879,16 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   .icon-btn { width: 44px; height: 44px; border-radius: 12px; }
   .icon-btn svg { width: 18px; height: 18px; }
 
+  /* The icon buttons are 44px tall here (vs 30px on desktop), so the open bar
+     must be tall enough to hold a 44px button plus its 12+12 vertical padding —
+     otherwise flex-end anchoring clips the button's top. */
+  .sticky-format-bar.open { max-height: 68px; }
+
   .sidebar-header { min-height: 64px; padding: 0 12px 0 20px; }
   .app-title { font-size: var(--fs-18); }
   .notes-pane-header { height: 64px; padding: 0 8px; }
   .editor-toolbar { height: 64px; }
-  .sidebar-search { padding: 12px 16px 12px; gap: 12px; }
+  .sidebar-search { padding: 12px 16px 12px 24px; gap: 12px; }
   .search-clear { width: 32px; height: 32px; }
   .search-clear svg { width: 16px; height: 16px; }
   .sidebar-search input { font-size: var(--fs-16); }

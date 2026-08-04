@@ -429,6 +429,10 @@ const SETTINGS_SECTION_LABELS = {
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
   { version: "1.30", date: "Jul 31, 2026", changes: [
+    "New checklist items always start unchecked — pressing Enter on a checked item no longer creates a pre-checked one.",
+    "The formatting toolbar (the “T” in the editor header) is now on desktop too, not just phones/tablets — turn it on to keep a toolbar open for inserting checklists, bullet and numbered lists, headings and more at your cursor, without having to select text first. Off by default. In focus mode it lines up with your writing column.",
+    "Sidebar tidy-up — Recents moved to the top (above Pinned), the focus-mode toggle moved up to the header, and “New folder” now lives right in the Folders section where it belongs.",
+    "More control over shared links — pick a custom expiry date (not just 1/7/30 days), and optionally protect a link with a password so only people you give it to can open it. Works for both single-note and whole-tag shares.",
     "Drag and drop to move things (on desktop) — drag a folder onto another folder to nest it, or drag a note onto a folder to move it or onto a tag to add that tag. Each move shows an Undo. (On phones/tablets, the move picker is unchanged.)",
     "Your display settings now follow you across devices — theme, folder & date visibility, date display, sort order, and Recents range are saved to your account, so a new device or sign-in keeps them instead of resetting.",
     "Tidier Settings — the one-item “Sidebar” tab is folded into General, and the categories are ordered more sensibly.",
@@ -2077,7 +2081,7 @@ function renderNotesList() {
 
 // ── Editor ────────────────────────────────────────────────────────────────────
 
-const toolbarBtns = [$("editor-back-btn"), $("editor-save-btn"), $("editor-menu-btn")];
+const toolbarBtns = [$("editor-back-btn"), $("editor-save-btn"), $("editor-menu-btn"), $("format-toggle-btn")];
 
 function formatDateFull(iso) {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -3454,6 +3458,21 @@ noteBody.addEventListener("keydown", e => {
       scheduleSave();
       return;
     }
+    // A brand-new checklist item must start UNCHECKED, even when split off a
+    // checked one — the browser's native Enter copies the whole <li class="done">.
+    // Let the split happen, then strip 'done' from the freshly-created item: the
+    // empty one the caret moves into (Enter at end/middle) or the empty one left
+    // above (Enter at the very start of the line).
+    if (li && li.classList.contains('done') && li.parentElement?.classList.contains('task-list')) {
+      const atStart = caretAtStartOfLi(li);
+      requestAnimationFrame(() => {
+        const fresh = atStart ? li.previousElementSibling : currentLi();
+        if (fresh && fresh.tagName === 'LI' && fresh !== li) {
+          fresh.classList.remove('done');
+          scheduleSave();
+        }
+      });
+    }
   }
 
   if (e.metaKey || e.ctrlKey) {
@@ -3532,15 +3551,19 @@ function updateActiveFormats() {
 // header, and doesn't need to know the keyboard or viewport exist at all.
 const isTouch = matchMedia("(hover: none)").matches;
 
-// The touch formatting bar is off by default (noise while writing) and revealed
-// on demand via the header's Formatting toggle. Its open/closed state is a
-// remembered preference so it stays where the user left it.
+// The formatting bar is off by default (noise while writing) and revealed on
+// demand via the header's Formatting toggle. Its open/closed state is a
+// remembered preference so it stays where the user left it. Available on both
+// touch and desktop — on desktop it also gives a way to insert lists/checklists
+// at the caret without first selecting text (the floating bar needs a selection).
 let formatBarOpen = localStorage.getItem("formatBarOpen") === "true";
 
 function applyFormatBar() {
-  if (!isTouch) return;
   stickyFormatBar.classList.toggle("open", formatBarOpen);
   formatToggleBtn.classList.toggle("active", formatBarOpen);
+  // On desktop the persistent bar replaces the floating-on-selection bar; drop
+  // the floating one when the persistent bar is on so they don't stack.
+  if (!isTouch && formatBarOpen) hideFormatBar();
 }
 
 let lastFmtToggleAt = 0;
@@ -3661,6 +3684,7 @@ stickyFormatBar.addEventListener("touchend", e => {
 
 function showFormatBar() {
   if (isTouch) return; // touch uses the sticky bar instead — see applyFormatBar / toggleFormatBar
+  if (formatBarOpen) { hideFormatBar(); return; } // desktop persistent bar is on — no floating bar
   if (!state.note || !selectionInEditor()) { hideFormatBar(); return; }
 
   const sel  = window.getSelection();
@@ -4037,20 +4061,53 @@ function shareExpiryText(expires_at) {
   return days <= 0 ? "Expired." : `Expires ${when} (${days} day${days === 1 ? "" : "s"}).`;
 }
 
+// Expiry controls → the payload piece the backend understands: a preset day
+// count, or an absolute date for the "Custom date…" option.
+function expiryPayload() {
+  if ($("share-expiry").value === "custom") return { expires_at: $("share-expiry-date").value || null };
+  return { expires_in_days: $("share-expiry").value || null };
+}
+
+// The custom date picker is only visible when "Custom date…" is chosen.
+function syncExpiryControls() {
+  $("share-expiry-date").classList.toggle("hidden", $("share-expiry").value !== "custom");
+}
+
+const shareActive = () => !$("share-active").classList.contains("hidden");
+
 function renderShareSheet(s) {
   const shared = !!(s && s.shared);
   $("share-active").classList.toggle("hidden", !shared);
   $("share-create-btn").classList.toggle("hidden", shared);
   const note = $("share-expiry-note");
   note.classList.toggle("hidden", !shared);
+
+  const hasPw = !!(s && s.has_password);
+  $("share-password-note").classList.toggle("hidden", !hasPw);
+  const pw = $("share-password");
+  pw.value = "";
+  pw.placeholder = hasPw ? "Change password" : (shared ? "Add a password" : "No password");
+
   if (shared) {
     $("share-url").value = shareUrl(s.token);
     note.textContent = shareExpiryText(s.expires_at);
+    // Reflect the live expiry back into the controls. An absolute timestamp
+    // shows as a custom date (honest about the real end date, even for presets).
+    if (s.expires_at) {
+      $("share-expiry").value = "custom";
+      $("share-expiry-date").value = new Date(s.expires_at).toISOString().slice(0, 10);
+    } else {
+      $("share-expiry").value = "";
+    }
+    syncExpiryControls();
   }
 }
 
-async function saveShare() {
-  const s = await api("PUT", shareApiPath(), { expires_in_days: $("share-expiry").value || null });
+async function saveShare(opts = {}) {
+  const body = expiryPayload();
+  if (opts.password) body.password = opts.password;
+  if (opts.removePassword) body.remove_password = true;
+  const s = await api("PUT", shareApiPath(), body);
   renderShareSheet(s);
   return s;
 }
@@ -4063,6 +4120,10 @@ async function openShareSheet(target) {
     ? `Anyone with the link can read every note tagged #${target.tag} — no sign-in needed. Tagging a note adds it to the shared list; removing the tag takes it off.`
     : "Anyone with the link can read this note — no sign-in needed.";
   $("share-expiry").value = "";
+  $("share-expiry-date").value = "";
+  $("share-expiry-date").min = new Date().toISOString().slice(0, 10);
+  $("share-password").value = "";
+  syncExpiryControls();
   try { renderShareSheet(await api("GET", shareApiPath())); }
   catch { renderShareSheet({ shared: false }); }
   $("share-modal").classList.remove("hidden");
@@ -4077,15 +4138,32 @@ $("share-note-btn").addEventListener("click", async () => {
 });
 
 $("share-create-btn").addEventListener("click", async () => {
-  const s = await saveShare();
+  const pw = $("share-password").value.trim();
+  const s = await saveShare(pw ? { password: pw } : {});
   navigator.clipboard.writeText(shareUrl(s.token))
-    .then(() => showToast("Link created & copied"))
+    .then(() => showToast(pw ? "Protected link created & copied" : "Link created & copied"))
     .catch(() => showToast("Link created"));
 });
 
 // Changing the expiry while already shared updates it in place (same link).
+// For "Custom date…", wait until an actual date is picked before saving.
 $("share-expiry").addEventListener("change", () => {
-  if (!$("share-active").classList.contains("hidden")) saveShare().then(() => showToast("Expiry updated"));
+  syncExpiryControls();
+  if (!shareActive()) return;
+  if ($("share-expiry").value === "custom" && !$("share-expiry-date").value) return;
+  saveShare().then(() => showToast("Expiry updated"));
+});
+$("share-expiry-date").addEventListener("change", () => {
+  if (shareActive() && $("share-expiry-date").value) saveShare().then(() => showToast("Expiry updated"));
+});
+
+// Setting/changing a password on an already-shared link.
+$("share-password").addEventListener("change", () => {
+  const pw = $("share-password").value.trim();
+  if (shareActive() && pw) saveShare({ password: pw }).then(() => showToast("Password set"));
+});
+$("share-password-remove").addEventListener("click", () => {
+  saveShare({ removePassword: true }).then(() => showToast("Password removed"));
 });
 
 $("share-copy-btn").addEventListener("click", () => {
@@ -4973,13 +5051,9 @@ updateFoldersVisibility();
 navAllNotes.classList.add("active");
 showEditorEmpty();
 setMobileView("sidebar");
-// The Formatting toggle only drives the touch sticky bar; on desktop the
-// floating-on-selection bar is used instead, so hide the header toggle AND its
-// Settings row there (they'd be no-ops).
-if (!isTouch) {
-  formatToggleBtn.style.display = "none";
-  $("settings-formatbar-row").style.display = "none";
-}
+// The Formatting toggle drives the persistent sticky bar on both touch and
+// desktop (desktop still also gets the floating-on-selection bar when the
+// persistent one is off), so the header toggle and its Settings row show on both.
 applyFormatBar();
 
 // ── Offline (Phase 1) ─────────────────────────────────────────────────────────
