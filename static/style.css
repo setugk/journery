@@ -1177,6 +1177,33 @@ input.share-field-control { color: var(--text-2); }
   font-size: var(--fs-12); color: var(--text-muted); margin: 8px 0 0;
 }
 .share-date-input.hidden, .share-password-note.hidden { display: none; }
+
+/* ── Connections (Claude / MCP access) ── */
+/* No global `.hidden { display:none }` exists in this app — each element hidden
+   via `.hidden` needs its own rule (same gotcha as the share controls). */
+#mcp-details.hidden,
+#mcp-token-none.hidden,
+#mcp-token-active.hidden,
+#mcp-token-reveal.hidden { display: none; }
+.mcp-field { margin-bottom: 18px; }
+.mcp-field:last-child { margin-bottom: 0; }
+.mcp-copy-row { display: flex; align-items: stretch; gap: 8px; }
+.mcp-copy-row .share-field-control {
+  flex: 1; min-width: 0;
+  font-family: ui-monospace, Menlo, monospace; font-size: var(--fs-12);
+  overflow-x: auto; white-space: nowrap;
+}
+.mcp-copy-row .settings-export-link { flex: none; align-self: center; white-space: nowrap; }
+.mcp-token-value { color: var(--text); font-weight: 600; }
+.mcp-token-status {
+  font-size: var(--fs-13); font-weight: 600; color: var(--text-2); margin-bottom: 10px;
+}
+.mcp-token-actions { display: flex; gap: 10px; }
+.mcp-revoke-link {
+  background: none; border: none; padding: 8px 0; cursor: pointer;
+  font-size: var(--fs-13); font-weight: 600; color: var(--sell, #DC2626);
+}
+.mcp-reveal-warn { color: var(--sell, #DC2626); margin-top: 8px; }
 .share-inline-link {
   background: none; border: none; padding: 0; font-family: inherit;
   font-size: var(--fs-12); font-weight: 600; color: var(--danger); cursor: pointer;

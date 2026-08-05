@@ -598,6 +598,48 @@ def set_setting(key, value):
     conn.close()
 
 
+# ── MCP access (Claude / AI connector) ──────────────────────────────────────────
+# Opt-in, off by default. Two settings rows: `mcp_enabled` gates the /mcp
+# endpoint, `mcp_token_hash` is the sha256 of the single bearer token (the token
+# itself is shown once at generation and never stored). Revoking clears the hash.
+# The token is high-entropy random, so a plain sha256 (constant-time compared) is
+# the right primitive here — pbkdf2 is for low-entropy passwords, not this.
+
+def get_mcp_enabled():
+    return get_setting("mcp_enabled") == "1"
+
+
+def set_mcp_enabled(on):
+    set_setting("mcp_enabled", "1" if on else "")
+
+
+def _hash_mcp_token(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def generate_mcp_token():
+    """Mint a new bearer token, store only its hash, and return the plaintext
+    ONCE (the caller shows it to the user; it can never be recovered after)."""
+    token = secrets.token_urlsafe(32)
+    set_setting("mcp_token_hash", _hash_mcp_token(token))
+    return token
+
+
+def has_mcp_token():
+    return bool(get_setting("mcp_token_hash"))
+
+
+def revoke_mcp_token():
+    set_setting("mcp_token_hash", "")
+
+
+def verify_mcp_token(token):
+    stored = get_setting("mcp_token_hash") or ""
+    if not stored or not token:
+        return False
+    return hmac.compare_digest(_hash_mcp_token(token), stored)
+
+
 # ── Sync ──────────────────────────────────────────────────────────────────────
 
 def get_sync_version():

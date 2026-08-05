@@ -423,12 +423,15 @@ function updateRecentsRangePicker() {
 
 const SETTINGS_SECTION_LABELS = {
   general: "General", changelog: "What's New", tags: "Tags", themes: "Themes", data: "Data",
-  bug: "Report a bug", feedback: "Send feedback",
+  connections: "Connections", bug: "Report a bug", feedback: "Send feedback",
 };
 
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
+  { version: "1.31", date: "Aug 4, 2026", changes: [
+    "Connect Claude to your journal (MCP) — a new opt-in Connections setting lets Claude read, search, create, tag, and organize your notes from Claude Code or the Claude API. Off by default; access needs a token you generate and can revoke any time, and Claude can never permanently delete or overwrite a note.",
+  ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [
     "New bottom bar on phones — a floating glass island with Search, New note, and Profile Settings, always within thumb reach.",
     "More control over shared links — set a custom expiry date and optionally password-protect a link, for both single notes and whole tags.",
@@ -557,6 +560,7 @@ function openSettingsSection(section) {
   if (section === "changelog") renderChangelog();
   if (section === "tags") renderSettingsTags();
   if (section === "themes") renderThemeGrid();
+  if (section === "connections") renderMcpSettings();
   if (section === "bug" || section === "feedback") prepareFeedbackForm(section);
   if (isMobile()) {
     $("settings-view").dataset.pane = "detail";
@@ -564,6 +568,82 @@ function openSettingsSection(section) {
     $("settings-topbar-title").textContent = SETTINGS_SECTION_LABELS[section] || section;
   }
 }
+
+// ── Connections (Claude / MCP access) ──────────────────────────────────────────
+const MCP_URL = location.origin + "/mcp";
+
+function mcpCliCommand(token) {
+  return `claude mcp add --transport http journery ${MCP_URL} --header "Authorization: Bearer ${token || "<YOUR_TOKEN>"}"`;
+}
+
+// Three token states: none (offer Generate), active (hash stored, offer
+// Regenerate/Revoke), or a freshly-revealed value shown once. A reveal is never
+// persisted — reopening the section resets to none/active.
+function mcpSetTokenState(hasToken, revealValue) {
+  $("mcp-token-none").classList.toggle("hidden", hasToken || !!revealValue);
+  $("mcp-token-active").classList.toggle("hidden", !hasToken || !!revealValue);
+  $("mcp-token-reveal").classList.toggle("hidden", !revealValue);
+  $("mcp-token-value").value = revealValue || "";
+  $("mcp-cli").value = mcpCliCommand(revealValue);
+}
+
+async function renderMcpSettings() {
+  if (window.DEMO_MODE) return;
+  $("mcp-url").value = MCP_URL;
+  let cfg;
+  try { cfg = await api("GET", "/api/mcp/config"); }
+  catch { cfg = { enabled: false, has_token: false }; }
+  $("mcp-enabled-toggle").classList.toggle("on", cfg.enabled);
+  $("mcp-details").classList.toggle("hidden", !cfg.enabled);
+  mcpSetTokenState(cfg.has_token, null);
+}
+
+function mcpCopy(inputId, btn) {
+  const input = $(inputId);
+  input.select();
+  navigator.clipboard?.writeText(input.value).catch(() => {});
+  const old = btn.textContent;
+  btn.textContent = "Copied";
+  setTimeout(() => { btn.textContent = old; }, 1200);
+}
+
+$("mcp-enabled-toggle")?.addEventListener("click", async () => {
+  const turningOn = !$("mcp-enabled-toggle").classList.contains("on");
+  const cfg = await api("PUT", "/api/mcp/enabled", { value: turningOn });
+  $("mcp-enabled-toggle").classList.toggle("on", cfg.enabled);
+  $("mcp-details").classList.toggle("hidden", !cfg.enabled);
+  // First time enabling with no token yet: mint one and reveal it, so there's
+  // something to connect with immediately.
+  if (cfg.enabled && !cfg.has_token) {
+    const { token } = await api("POST", "/api/mcp/token");
+    mcpSetTokenState(true, token);
+  } else {
+    mcpSetTokenState(cfg.has_token, null);
+  }
+});
+
+$("mcp-generate-btn")?.addEventListener("click", async () => {
+  const { token } = await api("POST", "/api/mcp/token");
+  mcpSetTokenState(true, token);
+});
+
+$("mcp-regenerate-btn")?.addEventListener("click", async () => {
+  if (!confirm("Regenerate the access token? The current token stops working immediately, and any connected client will need the new one.")) return;
+  const { token } = await api("POST", "/api/mcp/token");
+  mcpSetTokenState(true, token);
+  showToast("New token generated");
+});
+
+$("mcp-revoke-btn")?.addEventListener("click", async () => {
+  if (!confirm("Revoke Claude's access? Any connected client stops working until you generate a new token.")) return;
+  await api("DELETE", "/api/mcp/token");
+  mcpSetTokenState(false, null);
+  showToast("Token revoked");
+});
+
+$("mcp-url-copy")?.addEventListener("click", (e) => mcpCopy("mcp-url", e.currentTarget));
+$("mcp-token-copy")?.addEventListener("click", (e) => mcpCopy("mcp-token-value", e.currentTarget));
+$("mcp-cli-copy")?.addEventListener("click", (e) => mcpCopy("mcp-cli", e.currentTarget));
 
 function settingsBackToList() {
   $("settings-view").dataset.pane = "list";

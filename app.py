@@ -31,7 +31,7 @@ DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 # traffic. Never set this on prod/beta (self-hosted instances get no
 # analytics of any kind — see README's privacy promise). Empty = no beacon.
 CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
-APP_VERSION     = "1.30.33"
+APP_VERSION     = "1.31.0"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -485,6 +485,39 @@ def sync():
     return jsonify({"version": db.get_sync_version()})
 
 
+# ── MCP access config (owner-only, behind the app's normal auth) ────────────────
+# These manage the toggle + bearer token from Settings. The actual /mcp endpoint
+# (below) is bearer-authed instead, so Claude clients can reach it.
+
+@app.route("/api/mcp/config", methods=["GET"])
+@requires_auth
+def mcp_config():
+    return jsonify({"enabled": db.get_mcp_enabled(), "has_token": db.has_mcp_token()})
+
+
+@app.route("/api/mcp/enabled", methods=["PUT"])
+@requires_auth
+def mcp_set_enabled():
+    data = request.get_json(silent=True) or {}
+    db.set_mcp_enabled(bool(data.get("value")))
+    return jsonify({"enabled": db.get_mcp_enabled(), "has_token": db.has_mcp_token()})
+
+
+@app.route("/api/mcp/token", methods=["POST"])
+@requires_auth
+def mcp_generate_token():
+    # Plaintext returned ONCE — the client shows it to the user and can never
+    # recover it after (only its hash is stored).
+    return jsonify({"token": db.generate_mcp_token()})
+
+
+@app.route("/api/mcp/token", methods=["DELETE"])
+@requires_auth
+def mcp_revoke_token():
+    db.revoke_mcp_token()
+    return jsonify({"has_token": False})
+
+
 # ── Public share links ─────────────────────────────────────────────────────────
 
 def _share_payload(share):
@@ -674,6 +707,285 @@ def manifest():
             {"src": "/static/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
         ],
     })
+
+
+# ── MCP endpoint (Model Context Protocol, Streamable HTTP / JSON-RPC 2.0) ───────
+# Lets an AI client (Claude Code, or the Claude API's mcp_servers connector) do a
+# SAFE subset of CRUD on notes/folders/tags. Opt-in: off by default, gated by the
+# Settings toggle (db.get_mcp_enabled) AND a bearer token (db.verify_mcp_token).
+# Stateless: no sessions, plain application/json responses (no SSE) — enough for a
+# request/response tool server. Deliberately hand-rolled (no FastMCP dependency)
+# so it ships inside the one Flask app every self-hoster already runs.
+#
+# Safe subset by design: create / append / tag / move / trash (recoverable), plus
+# reads. NO blind full-body overwrite, NO permanent delete. Deleting only ever
+# moves a note to Trash (30-day recovery, same as the UI).
+#
+# Cloudflare (one-time, like /shared/*): add an Access BYPASS for
+# journery.setugk.com/mcp — the bearer token is the real gate, and an interactive
+# Access OTP would block automated clients.
+
+MCP_PROTOCOL_VERSION = "2025-06-18"
+
+
+class _MCPToolError(Exception):
+    """A tool-level failure — surfaced to the model as an isError tool result
+    (not a JSON-RPC protocol error, which is for malformed requests)."""
+
+
+def _mcp_bearer_ok():
+    hdr = request.headers.get("Authorization", "")
+    if not hdr.startswith("Bearer "):
+        return False
+    return db.verify_mcp_token(hdr[7:].strip())
+
+
+def _text_snippet(html, n=200):
+    text = re.sub(r"<[^>]+>", " ", html or "")
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:n]
+
+
+def _note_summary(n):
+    return {"id": n["id"], "title": n["title"], "tags": n.get("tags") or [],
+            "folder_id": n["folder_id"], "created_at": n["created_at"],
+            "updated_at": n["updated_at"], "snippet": _text_snippet(n["body"])}
+
+
+# ── Tool handlers (each takes the arguments dict, returns a JSON-able result) ────
+
+def _mcp_require_note(note_id):
+    note = db.get_note(note_id)
+    if not note or note.get("deleted_at"):
+        raise _MCPToolError(f"No note found with id {note_id!r}.")
+    return note
+
+
+def _tool_list_notes(a):
+    limit = int(a.get("limit") or 50)
+    notes = db.get_notes(folder_id=a.get("folder_id") or None,
+                         tag=a.get("tag") or None,
+                         query=a.get("query") or None)
+    return {"count": len(notes), "returned": min(len(notes), limit),
+            "notes": [_note_summary(n) for n in notes[:limit]]}
+
+
+def _tool_get_note(a):
+    note = _mcp_require_note(a.get("note_id"))
+    return {"id": note["id"], "title": note["title"], "body": note["body"],
+            "tags": note["tags"], "folder_id": note["folder_id"],
+            "created_at": note["created_at"], "updated_at": note["updated_at"]}
+
+
+def _tool_list_folders(a):
+    return {"folders": db.get_folders()}
+
+
+def _tool_list_tags(a):
+    return {"tags": db.get_tags()}
+
+
+def _tool_create_note(a):
+    note = db.create_note(
+        title=(a.get("title") or "").strip(),
+        body=a.get("body") or "",
+        folder_id=a.get("folder_id") or None,
+        tags=a.get("tags") or None,
+    )
+    return {"created": True, "note": _note_summary(note)}
+
+
+def _tool_append_to_note(a):
+    note = _mcp_require_note(a.get("note_id"))
+    add = a.get("body") or ""
+    if not add.strip():
+        raise _MCPToolError("body is empty — nothing to append.")
+    sep = "<br><br>" if (note["body"] or "").strip() else ""
+    updated = db.update_note(note["id"], body=note["body"] + sep + add)
+    return {"appended": True, "note": _note_summary(updated)}
+
+
+def _tool_add_tags_to_note(a):
+    note = _mcp_require_note(a.get("note_id"))
+    new = [t.strip().lower() for t in (a.get("tags") or []) if t and t.strip()]
+    if not new:
+        raise _MCPToolError("tags is empty.")
+    merged = sorted(set(note["tags"]) | set(new))
+    updated = db.update_note(note["id"], tags=merged)
+    return {"tags": updated["tags"], "note": _note_summary(updated)}
+
+
+def _tool_move_note(a):
+    note = _mcp_require_note(a.get("note_id"))
+    fid = a.get("folder_id") or None
+    if fid and not any(f["id"] == fid for f in db.get_folders()):
+        raise _MCPToolError(f"No folder found with id {fid!r}.")
+    updated = db.update_note(note["id"], folder_id=fid)
+    return {"moved": True, "note": _note_summary(updated)}
+
+
+def _tool_create_folder(a):
+    name = (a.get("name") or "").strip()
+    if not name:
+        raise _MCPToolError("name is required.")
+    parent = a.get("parent_id") or None
+    if parent and not any(f["id"] == parent for f in db.get_folders()):
+        raise _MCPToolError(f"No parent folder found with id {parent!r}.")
+    return {"created": True, "folder": db.create_folder(name, parent)}
+
+
+def _tool_trash_note(a):
+    note = _mcp_require_note(a.get("note_id"))
+    db.delete_note(note["id"])
+    return {"trashed": True, "id": note["id"],
+            "note": "Moved to Trash — recoverable for 30 days from the app."}
+
+
+_HTML_BODY_HELP = ("HTML content. Use <br> for line breaks, and tags like "
+                   "<h2>, <b>, <i>, <ul><li>, <ol><li>, <blockquote>, <a href> "
+                   "for structure — plain-text newlines will NOT render.")
+
+MCP_TOOLS = [
+    {"name": "list_notes",
+     "description": "List or search notes. Returns metadata + a short text snippet per note (not full bodies) — call get_note for full content. Newest-edited first.",
+     "inputSchema": {"type": "object", "properties": {
+         "query": {"type": "string", "description": "Full-text search over title and body."},
+         "tag": {"type": "string", "description": "Only notes carrying this tag."},
+         "folder_id": {"type": "string", "description": "Only notes in this folder ('root' for top level)."},
+         "limit": {"type": "integer", "description": "Max notes to return (default 50)."}}}},
+    {"name": "get_note",
+     "description": "Get one note's full content, including its HTML body.",
+     "inputSchema": {"type": "object", "properties": {
+         "note_id": {"type": "string", "description": "The note's id."}}, "required": ["note_id"]}},
+    {"name": "list_folders",
+     "description": "List all folders (flat; each has id, name, parent_id).",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "list_tags",
+     "description": "List all tags with their note counts.",
+     "inputSchema": {"type": "object", "properties": {}}},
+    {"name": "create_note",
+     "description": "Create a new note.",
+     "inputSchema": {"type": "object", "properties": {
+         "title": {"type": "string"},
+         "body": {"type": "string", "description": _HTML_BODY_HELP},
+         "folder_id": {"type": "string", "description": "Folder to place it in (omit for top level)."},
+         "tags": {"type": "array", "items": {"type": "string"}, "description": "Tag names to apply."}}}},
+    {"name": "append_to_note",
+     "description": "Append content to the END of an existing note's body (additive — never overwrites what's already there).",
+     "inputSchema": {"type": "object", "properties": {
+         "note_id": {"type": "string"},
+         "body": {"type": "string", "description": _HTML_BODY_HELP}}, "required": ["note_id", "body"]}},
+    {"name": "add_tags_to_note",
+     "description": "Add one or more tags to a note (merges with its existing tags).",
+     "inputSchema": {"type": "object", "properties": {
+         "note_id": {"type": "string"},
+         "tags": {"type": "array", "items": {"type": "string"}}}, "required": ["note_id", "tags"]}},
+    {"name": "move_note",
+     "description": "Move a note into a folder. Omit folder_id (or pass empty) to move it to the top level.",
+     "inputSchema": {"type": "object", "properties": {
+         "note_id": {"type": "string"},
+         "folder_id": {"type": "string"}}, "required": ["note_id"]}},
+    {"name": "create_folder",
+     "description": "Create a folder.",
+     "inputSchema": {"type": "object", "properties": {
+         "name": {"type": "string"},
+         "parent_id": {"type": "string", "description": "Parent folder id for a subfolder (omit for top level)."}}, "required": ["name"]}},
+    {"name": "trash_note",
+     "description": "Move a note to Trash. This is a recoverable soft-delete (restorable for 30 days from the app) — it is NOT a permanent delete.",
+     "inputSchema": {"type": "object", "properties": {
+         "note_id": {"type": "string"}}, "required": ["note_id"]}},
+]
+
+MCP_HANDLERS = {
+    "list_notes": _tool_list_notes,
+    "get_note": _tool_get_note,
+    "list_folders": _tool_list_folders,
+    "list_tags": _tool_list_tags,
+    "create_note": _tool_create_note,
+    "append_to_note": _tool_append_to_note,
+    "add_tags_to_note": _tool_add_tags_to_note,
+    "move_note": _tool_move_note,
+    "create_folder": _tool_create_folder,
+    "trash_note": _tool_trash_note,
+}
+
+
+def _mcp_result(req_id, result):
+    return {"jsonrpc": "2.0", "id": req_id, "result": result}
+
+
+def _mcp_error(req_id, code, message):
+    return {"jsonrpc": "2.0", "id": req_id, "error": {"code": code, "message": message}}
+
+
+def _mcp_dispatch(method, params, req_id):
+    params = params or {}
+    if method == "initialize":
+        return _mcp_result(req_id, {
+            "protocolVersion": params.get("protocolVersion") or MCP_PROTOCOL_VERSION,
+            "capabilities": {"tools": {}},
+            "serverInfo": {"name": "journery", "version": APP_VERSION},
+        })
+    if method == "tools/list":
+        return _mcp_result(req_id, {"tools": MCP_TOOLS})
+    if method == "ping":
+        return _mcp_result(req_id, {})
+    if method == "tools/call":
+        name = params.get("name")
+        handler = MCP_HANDLERS.get(name)
+        if not handler:
+            return _mcp_error(req_id, -32602, f"Unknown tool: {name}")
+        try:
+            result = handler(params.get("arguments") or {})
+        except _MCPToolError as e:
+            return _mcp_result(req_id, {"content": [{"type": "text", "text": str(e)}], "isError": True})
+        except Exception as e:  # noqa: BLE001 — never leak a stack trace to the client
+            return _mcp_result(req_id, {"content": [{"type": "text", "text": f"Error: {e}"}], "isError": True})
+        return _mcp_result(req_id, {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False)}]})
+    return _mcp_error(req_id, -32601, f"Method not found: {method}")
+
+
+def _mcp_handle_message(msg):
+    if not isinstance(msg, dict):
+        return _mcp_error(None, -32600, "Invalid Request")
+    method = msg.get("method")
+    req_id = msg.get("id")
+    # A JSON-RPC notification (no id, e.g. notifications/initialized) gets no reply.
+    if req_id is None and isinstance(method, str) and method.startswith("notifications/"):
+        return None
+    return _mcp_dispatch(method, msg.get("params"), req_id)
+
+
+@app.route("/mcp", methods=["POST"])
+def mcp_endpoint():
+    # Bearer-authed (NOT @requires_auth) so AI clients reach it; Cloudflare Access
+    # must BYPASS /mcp. Off unless enabled in Settings AND the token matches.
+    if not db.get_mcp_enabled() or not _mcp_bearer_ok():
+        return Response(
+            json.dumps(_mcp_error(None, -32001, "Unauthorized")),
+            status=401, mimetype="application/json",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return Response(json.dumps(_mcp_error(None, -32700, "Parse error")),
+                        status=400, mimetype="application/json")
+    if isinstance(payload, list):  # JSON-RPC batch (defensive; removed in 2025-06-18)
+        out = [r for r in (_mcp_handle_message(m) for m in payload) if r is not None]
+        return (Response("", status=202) if not out
+                else Response(json.dumps(out), mimetype="application/json"))
+    resp = _mcp_handle_message(payload)
+    if resp is None:
+        return Response("", status=202)  # was a notification
+    return Response(json.dumps(resp), mimetype="application/json")
+
+
+@app.route("/mcp", methods=["GET"])
+def mcp_endpoint_get():
+    # This is a stateless JSON server — it doesn't serve the optional SSE stream.
+    return Response(json.dumps(_mcp_error(None, -32000, "Method Not Allowed")),
+                    status=405, mimetype="application/json",
+                    headers={"Allow": "POST"})
 
 
 if __name__ == "__main__":

@@ -14,6 +14,7 @@ A self-hosted private journaling app. Nestable folders, tagged notes, markdown-s
 - **Drag and drop** (desktop) — a note into a folder or onto a tag, or a folder into another to nest it; drag to the Folders header to un-nest
 - **Right-click** a note, folder, or tag for quick actions (rename, move, delete, pin, share)
 - **Public share links** — turn any note, or a whole tag, into a read-only link anyone can open without signing in, with optional auto-expiry and one-tap revoke
+- **Connect an AI assistant (MCP)** — opt-in, off by default: let Claude read, search, create, tag, and organise your notes through the Model Context Protocol, gated by a token you generate and can revoke any time
 - Full-text search, plus a Timeline to browse by year
 - Trash with 30-day retention + restore
 - 48 built-in themes, light and dark — and your theme + display settings follow you across devices
@@ -138,6 +139,18 @@ Paste this to an AI coding/infra assistant that has access to your Cloudflare ac
 > Do not expose any path other than `/shared/*`.
 
 Using a different gate (Authelia, Authentik, NGINX/Traefik auth, etc.)? Same idea — allow `/shared/*` (and its sub-paths) through unauthenticated while keeping every other route protected.
+
+### Connect an AI assistant (MCP)
+
+Journery can expose a **[Model Context Protocol](https://modelcontextprotocol.io/) server** so an AI assistant — Claude Code today, and the Claude API's connector — can work with your notes for you (e.g. "add my Tokyo itinerary to my Japan trip note"). It's **opt-in and off by default**, and lives entirely inside the app you already run — no extra container or service.
+
+Turn it on in **Settings → Connections**: flip **Claude access (MCP)** on, and Journery generates a **bearer token** (shown once — copy it). Your MCP URL is just your Journery address + **`/mcp`**. The Settings screen gives you the exact `claude mcp add …` command to paste into Claude Code.
+
+**What the assistant can and can't do.** A deliberately safe subset: list, search, read, create, and append to notes; add tags; move notes between folders; create folders; and move a note to **Trash** (recoverable for 30 days). It **cannot** permanently delete a note or overwrite a note's existing content — so nothing it does is unrecoverable. Everything runs through the token; **revoke it any time** (Settings → Connections → Revoke) to cut off access instantly, and the endpoint stays dead whenever the toggle is off.
+
+**Privacy.** This is the second thing in Journery that can talk to an outside program, and only when *you* turn it on and hand *your* AI client *your* token — Journery still never phones home on its own. The assistant you connect (e.g. Claude) will see the notes it reads; that's the point of connecting it. Off by default; nothing changes unless you enable it.
+
+**One Cloudflare step if you use an auth gate.** Same catch as public sharing: an AI client can't complete an interactive Cloudflare Access / SSO login, so the `/mcp` path has to be **exempted** from your auth gate (the bearer token is its own gate). In **Cloudflare Access**, add a path-scoped **Bypass** policy for **`yourdomain.com/mcp`** (Include: Everyone) — exactly like the `/shared/*` bypass above, just a different path. Running open or with only `JOURNERY_USER`/`JOURNERY_PASS`? Nothing to do.
 
 ### Report a bug or send feedback
 
