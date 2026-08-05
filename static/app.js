@@ -4221,15 +4221,12 @@ $("share-modal").addEventListener("click", e => { if (e.target === $("share-moda
 // ── Save button ────────────────────────────────────────────────────────────────
 
 $("editor-save-btn").addEventListener("click", async () => {
+  // Manual save — keep the note OPEN (don't go back / close it). saveNoteNow()
+  // already persists and re-renders the list; we just confirm with a toast.
+  // New notes already toast "Note created", so skip the duplicate there.
+  const wasNew = !!(state.note && state.note.id === null);
   await saveNoteNow();
-  // "Save and go back" — same as the back button, the note shouldn't stay
-  // marked active in the list once we've left the editor.
-  state.note = null;
-  setMobileView("notes");
-  showEditorEmpty();
-  await loadNotes();
-  state.tags = await api("GET", "/api/tags");
-  renderSidebar();
+  if (!wasNew) showToast("Note saved");
 });
 
 // ── New note ──────────────────────────────────────────────────────────────────
