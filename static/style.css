@@ -219,34 +219,15 @@ body {
   padding: 8px 8px max(8px, env(safe-area-inset-bottom)) 12px;
   border-top: 1px solid var(--divider);
 }
-.profile-menu-wrapper { position: relative; flex: 1; min-width: 0; }
-.sidebar-profile {
+/* Profile chip = avatar + name + a Settings gear pushed to the right end. No more
+   dropdown menu: the gear opens Settings directly, and Feedback is a Settings
+   section now. (Desktop only — hidden on mobile, where the header gear + island
+   cover these.) */
+.sidebar-profile-chip {
   display: flex; align-items: center; gap: 8px;
-  width: 100%; min-width: 0;
-  background: none; border: none; padding: 4px; border-radius: 8px;
-  font-family: inherit; text-align: left; cursor: pointer;
-  transition: background 0.08s;
+  width: 100%; min-width: 0; padding: 4px;
 }
-.sidebar-profile:hover { background: var(--surface); }
-/* Discoverability: without this there's no visible signal the profile chip
-   opens a menu (hover-only affordance is invisible on touch). Points up,
-   matching the menu's actual opening direction — the one spot in the sidebar
-   that reveals upward instead of down. No extra margin-left — the parent's
-   flex gap (8px) already places it right next to the name, same rhythm as
-   the avatar-to-name gap. A 1px top nudge corrects an optical illusion: the
-   chevron's bounding box is mathematically centered with the text (verified
-   via getBoundingClientRect — both land on the same Y), but a "^" shape's
-   visual weight sits near its peak, which reads as sitting too high next to
-   text without this. */
-.profile-chevron { color: var(--text-muted); flex-shrink: 0; position: relative; top: 1px; transition: transform 0.15s; }
-.sidebar-profile.menu-open .profile-chevron { transform: rotate(180deg); }
-/* Opens upward — the trigger sits at the very bottom of the sidebar, so a
-   downward .pane-dropdown (the default) would run off the viewport. ID selector
-   (not .profile-menu) so it beats .pane-dropdown regardless of source order. */
-#profile-menu { top: auto; bottom: calc(100% + 6px); left: 0; right: auto; min-width: 200px; }
-#profile-menu button { display: flex; align-items: center; gap: 12px; }
-#profile-menu button svg { width: 15px; height: 15px; flex-shrink: 0; color: var(--text-muted); }
-.profile-menu-version { padding: 6px 12px 2px; font-size: var(--fs-11); color: var(--text-faint); }
+.profile-settings-btn { margin-left: auto; flex-shrink: 0; }
 .profile-avatar {
   width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
@@ -256,6 +237,104 @@ body {
 .profile-name {
   font-size: var(--fs-13); font-weight: 600; color: var(--text);
   min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Mobile floating glass island (Search · New note · Profile) ──────────────
+   Desktop keeps the sidebar-footer profile chip; the island is phones-only and
+   lives inside .sidebar so it slides off with the sidebar when navigating. */
+.mobile-island { display: none; }
+@media (max-width: 768px) {
+  .mobile-island {
+    display: flex; align-items: center; gap: 32px;
+    /* Fixed to the viewport, NOT absolute inside .sidebar — the sidebar is a
+       transformed + scrolling layer, and having that between the glass and the
+       page is what stopped iOS's standalone PWA webview from sampling the
+       backdrop (blur went missing / opaque). As a fixed child of .app there's no
+       transformed ancestor, so backdrop-filter can read the page behind it. */
+    position: fixed; left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
+    transform: translateX(-50%);
+    z-index: 20;
+    padding: 10px 22px;
+    border-radius: 999px;
+    /* SIMULATED glass — no backdrop-filter. Real backdrop blur is unreliable in the
+       installed iOS PWA (the sidebar behind it is a separate GPU layer the standalone
+       compositor won't feed into the backdrop), so the look is faked instead and reads
+       identically everywhere. A top-lighter → bottom-darker translucent fill mimics
+       light passing through glass; the specular rim, sheen (::before) and shadows do
+       the rest. The gradient (not a flat fill) is what gives it dimensionality and
+       lets the rim/sheen read — it's centered on ~75% opacity (68→82), so it stays as
+       solid as a flat 75% but still looks like glass rather than a plain pill. */
+    background: linear-gradient(180deg,
+      color-mix(in srgb, var(--surface) 68%, transparent) 0%,
+      color-mix(in srgb, var(--surface) 82%, transparent) 100%);
+    /* Faint hairline edge + a bright specular rim along the top (light catching the
+       glass) and a soft inner shadow at the bottom for depth — the classic glass read. */
+    border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+    box-shadow:
+      0 12px 34px rgba(0,0,0,0.28),
+      0 2px 8px rgba(0,0,0,0.14),
+      inset 0 1px 1.5px color-mix(in srgb, #fff 50%, transparent),    /* top rim — light on the upper curve */
+      inset 0 -1.5px 2px color-mix(in srgb, #fff 24%, transparent),   /* bottom refractive edge — light bending through the lower curve */
+      inset 0 -10px 22px color-mix(in srgb, #000 10%, transparent);   /* interior depth */
+  }
+  /* Faint inner ring that catches light all the way around — sells the "solid lens
+     of glass" refractive edge (real content-distortion needs backdrop-filter, which
+     the iOS PWA won't do; this is the reliable stand-in). */
+  .mobile-island::after {
+    content: '';
+    position: absolute; inset: 1px;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset 0 0 6px color-mix(in srgb, #fff 10%, transparent);
+  }
+  /* Glass sheen — a TOP-edge glow only. Vertical (180deg), not diagonal, so both
+     sides match (no white-ish bleed down the left), and it fades out by ~40% so it
+     stays a highlight under the top rim instead of washing the inner background.
+     The crisp top edge itself is the box-shadow rim above; this is the soft glow. */
+  .mobile-island::before {
+    content: '';
+    position: absolute; inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg,
+      color-mix(in srgb, #fff 15%, transparent) 0%,
+      transparent 42%);
+  }
+  /* It's a page-level fixed element now (not a child of the sliding sidebar), so
+     hide it explicitly on the notes-list and editor views — only the sidebar
+     (home) view shows it. */
+  .app[data-view="notes"] #mobile-island,
+  .app[data-view="editor"] #mobile-island { display: none; }
+
+  /* The island now owns Search + New note, so the always-visible duplicates at the
+     top are dropped on mobile. New note lives only in the island; the search field
+     is revealed on demand (tap the island magnifier → .app.search-open) rather than
+     sitting there permanently, reclaiming the top space. */
+  #compose-btn { display: none; }
+  .sidebar-search { display: none; }
+  .app.search-open .sidebar-search { display: flex; }
+  .app.search-open .search-clear { display: flex; }   /* doubles as the close/back control while searching */
+  .app.search-open #mobile-island { display: none; }  /* keep the field + keyboard clear of the island */
+  .island-btn {
+    width: 40px; height: 40px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; padding: 0;
+    color: var(--text-2); cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.1s, opacity 0.1s;
+  }
+  .island-btn:active { opacity: 0.55; }
+  .island-btn svg { width: 24px; height: 24px; }
+  /* New note is the primary action — give it the accent so it reads as the CTA. */
+  .island-btn-primary { color: var(--accent); }
+
+  /* The desktop profile chip (avatar + name + person icon) is dropped on mobile —
+     the island's person icon (Profile Settings) covers it. */
+  .sidebar-footer { display: none; }
+
+  /* Keep the last nav/folder rows scrollable clear of the floating island. */
+  .sidebar-nav { padding-bottom: 96px; }
 }
 
 /* ── Sidebar nav items (Pinned, Recents, All Notes, Tags, Timeline, Trash) ─── */
@@ -1023,6 +1102,23 @@ body {
           mask-image: var(--check-done);
 }
 .note-body-input ul.task-list > li.done { color: var(--text-muted); text-decoration: line-through; }
+/* Dark-mode selection readability: muted/struck (`.done`) text over the native
+   translucent-blue highlight was nearly invisible in WebKit (iOS PWA). Force a
+   brighter selected-text color so completed checklist items stay legible while
+   selected. We MUST set an explicit `background` too — declaring a ::selection
+   with only `color` makes WebKit drop the highlight background entirely. Scoped
+   to [data-dark] so light mode keeps its native selection (which reads fine).
+   ::selection and ::-moz-selection are separate rules on purpose — one selector
+   list containing an unknown pseudo is dropped whole by both engines. */
+[data-dark] .note-body-input ::selection {
+  background: rgba(122, 162, 247, 0.40);
+  color: var(--text);
+  -webkit-text-fill-color: var(--text);
+}
+[data-dark] .note-body-input ::-moz-selection {
+  background: rgba(122, 162, 247, 0.40);
+  color: var(--text);
+}
 .note-body-input code {
   /* Menlo (not SF Mono) — SF Mono is San Francisco's monospace sibling, so it
      shares the system UI font's design language and reads as barely different
@@ -1975,10 +2071,22 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
     overflow-y: auto;
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   }
+  /* Padding must be IDENTICAL in the list and detail states. If it only applies in
+     one state (as it used to, in the detail rule below), it snaps at the instant
+     you navigate — down 4px / right 12px — and that jump layered on the horizontal
+     slide reads as diagonal motion. Set it here so both states share it → the slide
+     is purely along the x-axis. */
+  .settings-content-pane { padding: 20px 16px 40px; }
   .settings-view[data-pane="list"]   .settings-cat-pane     { transform: translateX(0); }
   .settings-view[data-pane="list"]   .settings-content-pane { transform: translateX(100%); }
   .settings-view[data-pane="detail"] .settings-cat-pane     { transform: translateX(-100%); }
-  .settings-view[data-pane="detail"] .settings-content-pane { transform: translateX(0); padding: 20px 16px 40px; }
+  .settings-view[data-pane="detail"] .settings-content-pane { transform: translateX(0); }
+
+  /* The section detail already shows its name in the top bar, so a panel heading
+     that just repeats it (Report a bug / Send feedback / What's New) is redundant
+     on mobile — hide it. Sub-group labels (General's Notes List/Editor/Sidebar,
+     Themes' Built-in, etc.) are NOT tagged with this class, so they stay. */
+  .settings-page-heading { display: none; }
 
   .settings-row { min-height: 48px; }
   .settings-row-label { font-size: var(--fs-16); }

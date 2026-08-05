@@ -115,24 +115,12 @@
     </nav>
 
     <div class="sidebar-footer">
-      <div class="profile-menu-wrapper">
-        <button class="sidebar-profile" id="profile-btn" title="Account">
-          <span class="profile-avatar">{{ (journery_name or "Journery")|first|upper }}</span>
-          <span class="profile-name">{{ journery_name or "Journery" }}</span>
-          <svg class="profile-chevron" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>
+      <div class="sidebar-profile-chip">
+        <span class="profile-avatar">{{ (journery_name or "Journery")|first|upper }}</span>
+        <span class="profile-name">{{ journery_name or "Journery" }}</span>
+        <button class="icon-btn profile-settings-btn" id="settings-btn-desktop" title="Profile Settings" aria-label="Profile Settings">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </button>
-        <div class="pane-dropdown hidden" id="profile-menu">
-          <button id="profile-menu-settings">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-            <span>Settings</span>
-          </button>
-          <button id="profile-menu-feedback">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
-            <span>Report bug / Feedback</span>
-          </button>
-          <div class="pane-dropdown-sep"></div>
-          <div class="profile-menu-version">v{{ app_version }}</div>
-        </div>
       </div>
     </div>
   </aside>
@@ -357,6 +345,23 @@
     </div>
   </div>
 
+  <!-- Mobile-only floating glass island (Search · New note · Profile). A direct
+       child of .app (NOT the sidebar) and position:fixed, so no transformed /
+       scrolling ancestor sits between it and the page — that ancestry was what
+       broke backdrop-filter in the installed iOS PWA. Shown only on the mobile
+       sidebar view via the .app[data-view] toggle in CSS. -->
+  <div class="mobile-island" id="mobile-island">
+    <button class="island-btn" id="island-search-btn" title="Search" aria-label="Search">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    </button>
+    <button class="island-btn island-btn-primary" id="island-newnote-btn" title="New note" aria-label="New note">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+    </button>
+    <button class="island-btn" id="island-profile-btn" title="Profile Settings" aria-label="Profile Settings">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </button>
+  </div>
+
 </div>
 
 <!-- ── Standalone note view (opened via a #note/<id> share link) ── -->
@@ -385,7 +390,7 @@
       <button class="settings-topbar-back" id="settings-topbar-back">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg><span>Back</span>
       </button>
-      <span class="settings-topbar-title" id="settings-topbar-title">Settings</span>
+      <span class="settings-topbar-title" id="settings-topbar-title">Profile Settings</span>
       <span class="settings-topbar-spacer"></span>
     </div>
 
@@ -412,6 +417,14 @@
           </button>
           <button class="settings-cat-item" data-section="changelog">
             <span>What's New</span>
+            <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
+          </button>
+          <button class="settings-cat-item" data-section="bug">
+            <span>Report a bug</span>
+            <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
+          </button>
+          <button class="settings-cat-item" data-section="feedback">
+            <span>Send feedback</span>
             <svg class="settings-cat-chev" width="7" height="12" viewBox="0 0 7 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 1 6 6 1 11"/></svg>
           </button>
         </nav>
@@ -494,8 +507,34 @@
         <!-- What's New panel -->
         <div class="settings-panel hidden" id="settings-panel-changelog">
           <div class="settings-group">
-            <div class="settings-group-title">What's New</div>
+            <div class="settings-group-title settings-page-heading">What's New</div>
             <div id="changelog-list"></div>
+          </div>
+        </div>
+
+        <!-- Report a bug / Send feedback — one shared panel for both menu items.
+             The item you pick (Report a bug / Send feedback) presets the type, so
+             there's no Type dropdown to choose from. Title + placeholder are set in
+             prepareFeedbackForm(). -->
+        <div class="settings-panel hidden" id="settings-panel-feedback">
+          <div class="settings-group">
+            <div class="settings-group-title settings-page-heading" id="feedback-panel-title">Report a bug</div>
+            <div class="share-field">
+              <label class="share-field-label" for="feedback-message">Message</label>
+              <textarea class="modal-input" id="feedback-message" rows="5" placeholder="What's broken? What did you expect to happen?" autocomplete="off"></textarea>
+            </div>
+            <div class="share-field">
+              <label class="share-field-label" for="feedback-name">Name (optional)</label>
+              <input type="text" class="share-field-control" id="feedback-name" autocomplete="name">
+            </div>
+            <div class="share-field">
+              <label class="share-field-label" for="feedback-email">Email (optional)</label>
+              <input type="email" class="share-field-control" id="feedback-email" autocomplete="email">
+            </div>
+            <p class="feedback-hint">Sends your message (plus the app version and instance) to the developer. No note content is ever included. Name/email are only so we can follow up — leave blank to stay anonymous.</p>
+            <div class="modal-actions">
+              <button class="btn-primary" id="feedback-send-btn">Send</button>
+            </div>
           </div>
         </div>
 
@@ -666,44 +705,6 @@
         </div>
         <button class="share-btn share-btn-primary" id="share-copy-btn">Copy link</button>
         <button class="share-btn share-btn-danger" id="share-revoke-btn">Stop sharing</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ── Report bug / feedback modal ── -->
-<div class="modal-overlay hidden" id="feedback-modal">
-  <div class="modal">
-    <div class="modal-header">
-      <span>Report a bug / feedback</span>
-      <button class="icon-btn" id="feedback-modal-close">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div class="modal-body">
-      <div class="share-field">
-        <label class="share-field-label" for="feedback-type">Type</label>
-        <select class="share-field-control" id="feedback-type">
-          <option value="bug">Bug — something's broken</option>
-          <option value="feedback">Feedback — an idea or suggestion</option>
-        </select>
-      </div>
-      <div class="share-field">
-        <label class="share-field-label" for="feedback-message">Message</label>
-        <textarea class="modal-input" id="feedback-message" rows="5" placeholder="What's wrong, or what would help?" autocomplete="off"></textarea>
-      </div>
-      <div class="share-field">
-        <label class="share-field-label" for="feedback-name">Name (optional)</label>
-        <input type="text" class="share-field-control" id="feedback-name" autocomplete="name">
-      </div>
-      <div class="share-field">
-        <label class="share-field-label" for="feedback-email">Email (optional)</label>
-        <input type="email" class="share-field-control" id="feedback-email" autocomplete="email">
-      </div>
-      <p class="feedback-hint">Sends your message (plus the app version and instance) to the developer. No note content is ever included. Name/email are only so we can follow up — leave blank to stay anonymous.</p>
-      <div class="modal-actions">
-        <button class="btn-secondary" id="feedback-cancel-btn">Cancel</button>
-        <button class="btn-primary" id="feedback-send-btn">Send</button>
       </div>
     </div>
   </div>

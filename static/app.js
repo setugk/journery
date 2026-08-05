@@ -423,12 +423,17 @@ function updateRecentsRangePicker() {
 
 const SETTINGS_SECTION_LABELS = {
   general: "General", changelog: "What's New", tags: "Tags", themes: "Themes", data: "Data",
+  bug: "Report a bug", feedback: "Send feedback",
 };
 
 // User-facing changelog. Curated highlights only — major features per release,
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
-  { version: "1.30", date: "Jul 31, 2026", changes: [
+  { version: "1.30", date: "Aug 4, 2026", changes: [
+    "New bottom bar on phones — a floating glass island with Search, New note, and Profile Settings, always in thumb reach. Search and the new-note button moved down into it, so the top of the screen is just your notes.",
+    "Profile & Settings tidied up — tap the person icon (bottom-right on desktop, in the island on phones) to open Profile Settings, with “Report a bug” and “Send feedback” now as their own sections in there instead of a separate menu.",
+    "Tapping outside an open menu now just closes it, rather than also opening whatever happened to be underneath.",
+    "Dark mode: selected text stays readable — completed checklist items and other muted text no longer wash out under the selection highlight.",
     "New checklist items always start unchecked — pressing Enter on a checked item no longer creates a pre-checked one.",
     "The formatting toolbar (the “T” in the editor header) is now on desktop too, not just phones/tablets — turn it on to keep a toolbar open for inserting checklists, bullet and numbered lists, headings and more at your cursor, without having to select text first. Off by default. In focus mode it lines up with your writing column.",
     "Sidebar tidy-up — Recents moved to the top (above Pinned), the focus-mode toggle moved up to the header, and “New folder” now lives right in the Folders section where it belongs.",
@@ -562,15 +567,19 @@ function openSettingsSection(section) {
   document.querySelectorAll(".settings-cat-item").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.section === section);
   });
+  // "bug" and "feedback" are two separate menu items that share one form panel —
+  // the item you pick just presets the report type (no Type dropdown to choose).
+  const panelSection = (section === "bug") ? "feedback" : section;
   document.querySelectorAll(".settings-panel").forEach(panel => {
-    panel.classList.toggle("hidden", panel.id !== `settings-panel-${section}`);
+    panel.classList.toggle("hidden", panel.id !== `settings-panel-${panelSection}`);
   });
   if (section === "changelog") renderChangelog();
   if (section === "tags") renderSettingsTags();
   if (section === "themes") renderThemeGrid();
+  if (section === "bug" || section === "feedback") prepareFeedbackForm(section);
   if (isMobile()) {
     $("settings-view").dataset.pane = "detail";
-    $("settings-topbar-back").querySelector("span").textContent = "Settings";
+    $("settings-topbar-back").querySelector("span").textContent = "Back";
     $("settings-topbar-title").textContent = SETTINGS_SECTION_LABELS[section] || section;
   }
 }
@@ -578,7 +587,7 @@ function openSettingsSection(section) {
 function settingsBackToList() {
   $("settings-view").dataset.pane = "list";
   $("settings-topbar-back").querySelector("span").textContent = "Back";
-  $("settings-topbar-title").textContent = "Settings";
+  $("settings-topbar-title").textContent = "Profile Settings";
 }
 
 function closeSettings() {
@@ -593,7 +602,7 @@ function openSettings() {
   updateRecentsRangePicker();
   $("settings-view").dataset.pane = "list";
   $("settings-topbar-back").querySelector("span").textContent = "Back";
-  $("settings-topbar-title").textContent = "Settings";
+  $("settings-topbar-title").textContent = "Profile Settings";
   if (!isMobile()) openSettingsSection("general");
   $("settings-view").classList.remove("hidden");
 }
@@ -759,28 +768,61 @@ function renderSettingsTags() {
   });
 }
 
-// ── Profile menu (Settings, Report bug/Feedback) ─────────────────────────────
-const profileMenu = $("profile-menu");
-const profileBtn  = $("profile-btn");
-// Chevron flips to point down while open (mirrors .section-chev.open elsewhere)
-// — up = "opens above", down = "click to close".
-function setProfileMenuOpen(open) {
-  profileMenu.classList.toggle("hidden", !open);
-  profileBtn.classList.toggle("menu-open", open);
+// ── Settings entry points ────────────────────────────────────────────────────
+// The old profile dropdown (Settings / Feedback) is gone: Profile Settings opens
+// directly from a person icon (right end of the desktop profile chip; third slot
+// of the mobile island), and Feedback is now a section inside it.
+$("settings-btn-desktop")?.addEventListener("click", openSettings);
+$("island-profile-btn")?.addEventListener("click", e => { e.stopPropagation(); openSettings(); });
+
+// ── Outside-click dismissal (swallow the click) ───────────────────────────────
+// When any floating menu (a dropdown / context menu — the ones WITHOUT a
+// full-screen backdrop; modals already catch their own outside clicks) is open,
+// the first click outside it should ONLY dismiss the menu, not also activate
+// whatever was under the cursor (open a note, navigate a folder, focus search…).
+// This runs in the CAPTURE phase, before the target's own handlers, and stops the
+// event there. Clicks INSIDE a menu (its items) and clicks on a menu TRIGGER (so
+// toggling / switching between menus still works in one tap) are let through
+// untouched — the triggers' own stopPropagation keeps them behaving as before.
+const OPEN_MENU_SELECTOR =
+  "#sort-menu:not(.hidden), #new-item-menu:not(.hidden), " +
+  "#notes-overflow-menu:not(.hidden), #overflow-menu:not(.hidden), #note-ctx-menu:not(.hidden), " +
+  ".folder-ctx-menu";
+const MENU_CONTENT_SELECTOR =
+  "#sort-menu, #new-item-menu, #notes-overflow-menu, #overflow-menu, " +
+  "#note-ctx-menu, .folder-ctx-menu";
+const MENU_TRIGGER_SELECTOR =
+  "#sort-btn, #new-note-btn, #notes-overflow-btn, " +
+  "#editor-menu-btn, .folder-kebab";
+
+function closeAllFloatingMenus() {
+  closeHeaderMenus();
+  closeCtxMenus();
+  hideNoteCtxMenu();
+  overflowMenu.classList.add("hidden");
 }
-$("profile-btn").addEventListener("click", e => {
+
+document.addEventListener("click", e => {
+  if (!document.querySelector(OPEN_MENU_SELECTOR)) return;     // nothing open → normal behaviour
+  if (e.target.closest(MENU_CONTENT_SELECTOR)) return;         // clicked a menu item → let it act
+  if (e.target.closest(MENU_TRIGGER_SELECTOR)) return;         // clicked a trigger → let it toggle/switch
+  // Genuine outside click → dismiss only; swallow so the element beneath isn't activated.
   e.stopPropagation();
-  setProfileMenuOpen(profileMenu.classList.contains("hidden"));
+  e.preventDefault();
+  closeAllFloatingMenus();
+}, true);   // capture phase — must beat the target's handlers
+
+// Mobile floating island (Search · New note) — reuses the top search field and the
+// notes-pane "+" handlers.
+$("island-search-btn")?.addEventListener("click", e => {
+  e.stopPropagation();
+  appEl.classList.add("search-open");   // mobile: reveal the search field (inert class on desktop)
+  searchInput.focus();
 });
-$("profile-menu-settings").addEventListener("click", () => {
-  setProfileMenuOpen(false);
-  openSettings();
+$("island-newnote-btn")?.addEventListener("click", e => {
+  e.stopPropagation();
+  newNote();
 });
-$("profile-menu-feedback").addEventListener("click", () => {
-  setProfileMenuOpen(false);
-  openFeedbackModal();
-});
-document.addEventListener("click", () => setProfileMenuOpen(false));
 
 // ── Report bug / feedback modal ───────────────────────────────────────────────
 // Always goes to the real collector, even in demo mode — this is a separate,
@@ -788,32 +830,33 @@ document.addEventListener("click", () => setProfileMenuOpen(false));
 // would wrongly route it through the demo's local-storage shim).
 const FEEDBACK_ENDPOINT = "https://feedback.setugk.com/api/feedback";
 
-function openFeedbackModal() {
+// Feedback lives as two Settings sections that share one form panel — "Report a
+// bug" (section "bug") and "Send feedback" (section "feedback"). The section sets
+// the report type (no Type dropdown), the panel title, and the message prompt.
+let feedbackType = "bug";
+function prepareFeedbackForm(section) {
+  feedbackType = (section === "feedback") ? "feedback" : "bug";
+  const isBug = feedbackType === "bug";
+  $("feedback-panel-title").textContent = isBug ? "Report a bug" : "Send feedback";
+  $("feedback-message").placeholder = isBug
+    ? "What's broken? What did you expect to happen?"
+    : "What's your idea or suggestion?";
   $("feedback-message").value = "";
-  $("feedback-type").value = "bug";
   // Remember name/email across submissions (localStorage) so a repeat reporter
   // isn't retyping contact info every time — still fully optional either way.
   $("feedback-name").value = localStorage.getItem("feedbackName") || "";
   $("feedback-email").value = localStorage.getItem("feedbackEmail") || "";
-  $("feedback-modal").classList.remove("hidden");
-  $("feedback-message").focus();
 }
-function closeFeedbackModal() {
-  $("feedback-modal").classList.add("hidden");
-}
-$("feedback-modal-close").addEventListener("click", closeFeedbackModal);
-$("feedback-cancel-btn").addEventListener("click", closeFeedbackModal);
-$("feedback-modal").addEventListener("click", e => { if (e.target === $("feedback-modal")) closeFeedbackModal(); });
 
 $("feedback-send-btn").addEventListener("click", async () => {
   const message = $("feedback-message").value.trim();
-  const type = $("feedback-type").value;
+  const type = feedbackType;
   const name = $("feedback-name").value.trim();
   const email = $("feedback-email").value.trim();
   if (!message) return;
   localStorage.setItem("feedbackName", name);
   localStorage.setItem("feedbackEmail", email);
-  closeFeedbackModal();
+  $("feedback-message").value = "";   // clear after sending; the section stays open
   try {
     const res = await fetch(FEEDBACK_ENDPOINT, {
       method: "POST",
@@ -826,7 +869,6 @@ $("feedback-send-btn").addEventListener("click", async () => {
     showToast("Couldn't send feedback — check your connection");
   }
 });
-profileMenu.addEventListener("click", e => e.stopPropagation());
 $("settings-folders-toggle").addEventListener("click", () => {
   state.showFolders = !state.showFolders;
   saveSyncedSetting("showFolders", state.showFolders);
@@ -1139,9 +1181,24 @@ searchInput.addEventListener("input", () => {
 });
 searchInput.addEventListener("keydown", e => {
   if (e.key === "Enter")  { e.preventDefault(); clearTimeout(searchDebounce); runLiveSearch(); }
-  if (e.key === "Escape") { e.preventDefault(); exitSearch(); searchInput.blur(); }
+  if (e.key === "Escape") { e.preventDefault(); closeSearchPanel(); }
 });
-$("search-clear").addEventListener("click", () => { exitSearch(); searchInput.focus(); });
+// ✕: on mobile it closes the whole revealed field (the island brings it back); on
+// desktop the field is always there, so just clear it and keep it focused to retype.
+$("search-clear").addEventListener("click", () => {
+  if (window.innerWidth <= 768) closeSearchPanel();
+  else { exitSearch(); searchInput.focus(); }
+});
+
+// Fully dismiss the on-demand mobile search field: clear results, hide the field
+// (via .search-open), drop the keyboard, and let the island return. `exitSearch`
+// alone only returns to the nav — it intentionally leaves the field open so that
+// deleting all the text lets you keep typing; this is the explicit close.
+function closeSearchPanel() {
+  exitSearch();
+  appEl.classList.remove("search-open");
+  searchInput.blur();
+}
 
 // ── Folder tree ───────────────────────────────────────────────────────────────
 
