@@ -1358,6 +1358,11 @@ body.note-view-mode .app { display: none; }
 .modal-input:focus { border-color: var(--border-mid); }
 textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
 .feedback-hint { font-size: var(--fs-12); color: var(--text-muted); margin: -4px 0 12px; }
+/* Feedback panel: the global section-title has a 4px inset that only reads right
+   above a bordered rows-card (General/Themes), not above the plain fields here —
+   so drop the inset to line the title up with Message/inputs, and add breathing
+   room before the first field (the default 8px felt cramped). */
+#settings-panel-feedback .settings-group-title { padding-left: 0; margin-bottom: 18px; }
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
