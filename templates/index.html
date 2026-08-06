@@ -824,6 +824,11 @@
   </button>
 </div>
 
+<!-- Subtle dim behind any open dropdown / context menu. Absorbs the outside tap
+     (so the element beneath isn't triggered — esp. on touch) and signals the menu
+     is modal. Sits below the menus (z 100+) and above app content. -->
+<div class="menu-backdrop hidden" id="menu-backdrop"></div>
+
 <div class="toast hidden" id="toast"></div>
 <div class="offline-pill hidden" id="offline-pill">Offline — changes won't save yet</div>
 

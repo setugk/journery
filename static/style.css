@@ -355,6 +355,10 @@ body {
 }
 .nav-item:hover { background: var(--border); color: var(--text); }
 .nav-item .nav-icon { flex-shrink: 0; color: var(--text-muted); width: 14px; }
+/* The pin glyph carries its visual weight in the upper half (head at top, point
+   at bottom), so a geometrically-centered box reads a touch high. Nudge just this
+   icon down 1px to optically center it against the label. */
+#pinned-tags-toggle .nav-icon { transform: translateY(1px); }
 
 /* Currently-selected nav destination — a subtle accent-tinted background
    (not a solid fill, which read as too loud) plus bold text and an
@@ -603,6 +607,15 @@ body {
   z-index: 100;
 }
 .pane-dropdown.hidden { display: none; }
+
+/* Backdrop behind an open dropdown / context menu (below the menus at z 100+,
+   above app content). Subtle, theme-aware dim. */
+.menu-backdrop {
+  position: fixed; inset: 0; z-index: 95;
+  background: rgba(0, 0, 0, 0.10);
+}
+[data-dark] .menu-backdrop { background: rgba(0, 0, 0, 0.32); }
+.menu-backdrop.hidden { display: none; }
 .pane-dropdown button {
   display: block; width: 100%;
   padding: 8px 12px; text-align: left;
@@ -2255,8 +2268,12 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
 
 /* ── Touch devices: no persistent hover ─────────────────────────────── */
 @media (hover: none) {
-  .nav-item:hover        { background: none; color: var(--text-muted); }
-  .tag-nav-item:hover    { background: none; color: var(--text-muted); }
+  /* Touch retains :hover after a tap, so hover must be a true no-op — reset to
+     the element's RESTING color (--text-2), not --text-muted (which is lighter,
+     and made tapped tags fade and stay faded). No intermediary state on touch:
+     default at rest, :active only while the finger is down. */
+  .nav-item:hover        { background: none; color: var(--text-2); }
+  .tag-nav-item:hover    { background: none; color: var(--text-2); }
   .folder-row:hover      { background: none; }
   .folder-row:hover .folder-kebab { opacity: 0; }
   .note-item:hover       { background: none; }

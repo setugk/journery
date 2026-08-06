@@ -431,6 +431,7 @@ const SETTINGS_SECTION_LABELS = {
 const CHANGELOG = [
   { version: "1.31", date: "Aug 4, 2026", changes: [
     "Connect Claude to your journal (MCP) — a new opt-in Connections setting lets Claude read, search, create, tag, and organize your notes from Claude Code or the Claude API. Off by default; access needs a token you generate and can revoke any time, and Claude can never permanently delete or overwrite a note.",
+    "Bug fixes & improvements",
   ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [
     "New bottom bar on phones — a floating glass island with Search, New note, and Profile Settings, always within thumb reach.",
@@ -863,15 +864,38 @@ function closeAllFloatingMenus() {
   overflowMenu.classList.add("hidden");
 }
 
-document.addEventListener("click", e => {
+function outsideMenuGuard(e) {
   if (!document.querySelector(OPEN_MENU_SELECTOR)) return;     // nothing open → normal behaviour
-  if (e.target.closest(MENU_CONTENT_SELECTOR)) return;         // clicked a menu item → let it act
-  if (e.target.closest(MENU_TRIGGER_SELECTOR)) return;         // clicked a trigger → let it toggle/switch
-  // Genuine outside click → dismiss only; swallow so the element beneath isn't activated.
+  if (e.target.closest(MENU_CONTENT_SELECTOR)) return;         // a menu item → let it act
+  if (e.target.closest(MENU_TRIGGER_SELECTOR)) return;         // a trigger → let it toggle/switch
+  // Genuine outside interaction → swallow so the element beneath isn't activated.
   e.stopPropagation();
   e.preventDefault();
-  closeAllFloatingMenus();
-}, true);   // capture phase — must beat the target's handlers
+  // Close on click; on pointerdown only BLOCK (focus, pointer-based handlers) and
+  // leave the menu open so the click guard still sees it — closing on pointerdown
+  // would let the follow-up click reach the element underneath.
+  if (e.type === "click") closeAllFloatingMenus();
+}
+// Both events, capture phase — pointerdown beats focus + pointer/touch handlers
+// that fire before click; click does the actual dismiss.
+document.addEventListener("pointerdown", outsideMenuGuard, true);
+document.addEventListener("click", outsideMenuGuard, true);
+
+// Visual backdrop mirror of the same "is a menu open" state. Absorbs the tap
+// itself (belt-and-suspenders with the guard, and covers pane-nested menus) and
+// dims the page so the menu reads as modal. Driven by watching the menus rather
+// than hooking every open/close site: static menus toggle a class; the folder/tag
+// context menus are appended to / removed from <body>.
+const menuBackdrop = $("menu-backdrop");
+function syncMenuBackdrop() {
+  menuBackdrop.classList.toggle("hidden", !document.querySelector(OPEN_MENU_SELECTOR));
+}
+const _menuBackdropObserver = new MutationObserver(syncMenuBackdrop);
+["sort-menu", "new-item-menu", "notes-overflow-menu", "overflow-menu", "note-ctx-menu"]
+  .forEach(id => { const el = $(id); if (el) _menuBackdropObserver.observe(el, { attributes: true, attributeFilter: ["class"] }); });
+_menuBackdropObserver.observe(document.body, { childList: true });
+["pointerdown", "click"].forEach(evt =>
+  menuBackdrop.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); closeAllFloatingMenus(); }));
 
 // Mobile floating island (Search · New note) — reuses the top search field and the
 // notes-pane "+" handlers.
