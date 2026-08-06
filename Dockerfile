@@ -1,7 +1,7 @@
 FROM python:3.12-alpine
 WORKDIR /app
 RUN pip install flask --no-cache-dir
-COPY app.py db.py ./
+COPY app.py db.py htmlschema.py ./
 COPY templates/ templates/
 COPY static/ static/
 EXPOSE 5000
