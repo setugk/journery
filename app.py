@@ -10,6 +10,7 @@ from functools import wraps
 from datetime import datetime, timezone, timedelta
 from flask import Flask, request, jsonify, render_template, Response, redirect
 import db
+import htmlschema
 
 app = Flask(__name__)
 # Cap request bodies at 32MB — guards against unbounded uploads while staying
@@ -31,7 +32,7 @@ DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 # traffic. Never set this on prod/beta (self-hosted instances get no
 # analytics of any kind — see README's privacy promise). Empty = no beacon.
 CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
-APP_VERSION     = "1.31.3"
+APP_VERSION     = "1.31.4"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -786,9 +787,11 @@ def _tool_list_tags(a):
 
 
 def _tool_create_note(a):
+    body = a.get("body") or ""
+    htmlschema.validate_html(body)   # rejects unsupported HTML before it's stored
     note = db.create_note(
         title=(a.get("title") or "").strip(),
-        body=a.get("body") or "",
+        body=body,
         folder_id=a.get("folder_id") or None,
         tags=a.get("tags") or None,
     )
@@ -800,9 +803,25 @@ def _tool_append_to_note(a):
     add = a.get("body") or ""
     if not add.strip():
         raise _MCPToolError("body is empty — nothing to append.")
+    htmlschema.validate_html(add)    # validate only the new HTML, not the existing body
     sep = "<br><br>" if (note["body"] or "").strip() else ""
     updated = db.update_note(note["id"], body=note["body"] + sep + add)
     return {"appended": True, "note": _note_summary(updated)}
+
+
+def _tool_update_note(a):
+    note = _mcp_require_note(a.get("note_id"))
+    kwargs = {}
+    if "body" in a:
+        body = a.get("body") or ""
+        htmlschema.validate_html(body)
+        kwargs["body"] = body
+    if "title" in a:
+        kwargs["title"] = (a.get("title") or "").strip()
+    if not kwargs:
+        raise _MCPToolError("nothing to update — pass body and/or title.")
+    updated = db.update_note(note["id"], **kwargs)
+    return {"updated": True, "note": _note_summary(updated)}
 
 
 def _tool_add_tags_to_note(a):
@@ -841,9 +860,9 @@ def _tool_trash_note(a):
             "note": "Moved to Trash — recoverable for 30 days from the app."}
 
 
-_HTML_BODY_HELP = ("HTML content. Use <br> for line breaks, and tags like "
-                   "<h2>, <b>, <i>, <ul><li>, <ol><li>, <blockquote>, <a href> "
-                   "for structure — plain-text newlines will NOT render.")
+# Generated from htmlschema.SUPPORTED_TAGS so the advertised contract can never
+# drift from what the write validator enforces (Task: single source of truth).
+_HTML_BODY_HELP = htmlschema.body_param_description()
 
 MCP_TOOLS = [
     {"name": "list_notes",
@@ -871,10 +890,16 @@ MCP_TOOLS = [
          "folder_id": {"type": "string", "description": "Folder to place it in (omit for top level)."},
          "tags": {"type": "array", "items": {"type": "string"}, "description": "Tag names to apply."}}}},
     {"name": "append_to_note",
-     "description": "Append content to the END of an existing note's body (additive — never overwrites what's already there).",
+     "description": "Append content to the END of an existing note's body (additive — never overwrites what's already there). To fix or restructure existing content, use update_note.",
      "inputSchema": {"type": "object", "properties": {
          "note_id": {"type": "string"},
          "body": {"type": "string", "description": _HTML_BODY_HELP}}, "required": ["note_id", "body"]}},
+    {"name": "update_note",
+     "description": "Replace a note's body (and/or title). DESTRUCTIVE: the old body is overwritten and NOT recoverable (Journery keeps no per-note history). Use this to repair your own earlier output — get_note first, fix the HTML, then update_note. To add without overwriting, use append_to_note instead.",
+     "inputSchema": {"type": "object", "properties": {
+         "note_id": {"type": "string"},
+         "body": {"type": "string", "description": "New full body. " + _HTML_BODY_HELP},
+         "title": {"type": "string", "description": "New title (optional)."}}, "required": ["note_id"]}},
     {"name": "add_tags_to_note",
      "description": "Add one or more tags to a note (merges with its existing tags).",
      "inputSchema": {"type": "object", "properties": {
@@ -903,6 +928,7 @@ MCP_HANDLERS = {
     "list_tags": _tool_list_tags,
     "create_note": _tool_create_note,
     "append_to_note": _tool_append_to_note,
+    "update_note": _tool_update_note,
     "add_tags_to_note": _tool_add_tags_to_note,
     "move_note": _tool_move_note,
     "create_folder": _tool_create_folder,
@@ -937,6 +963,11 @@ def _mcp_dispatch(method, params, req_id):
             return _mcp_error(req_id, -32602, f"Unknown tool: {name}")
         try:
             result = handler(params.get("arguments") or {})
+        except htmlschema.UnsupportedHtmlError as e:
+            # Invalid HTML params → a JSON-RPC error (-32602) whose message names the
+            # offending tag, lists every supported tag, and suggests a substitution,
+            # so the agent can correct itself and retry without a human.
+            return _mcp_error(req_id, e.code, e.message)
         except _MCPToolError as e:
             return _mcp_result(req_id, {"content": [{"type": "text", "text": str(e)}], "isError": True})
         except Exception as e:  # noqa: BLE001 — never leak a stack trace to the client
