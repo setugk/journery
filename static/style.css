@@ -492,6 +492,8 @@ body {
    icons line up in the same vertical column as the "Pinned" header icon. */
 .tag-pin-btn.tag-pin-left {
   width: 14px; height: 18px; margin-left: 0; opacity: 1;
+  /* Optically center the top-heavy pin glyph against the # + tag label. */
+  transform: translateY(2px);
 }
 
 /* Pinned tags section empty state */
