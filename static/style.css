@@ -1164,8 +1164,32 @@ body {
   white-space: pre-wrap; word-break: break-word; overflow-x: auto;
 }
 /* Inside a block, the box is drawn by <pre> — drop the inline chip's own
-   background/border/radius so it doesn't double up. */
-.note-body-input pre code { background: none; border: none; border-radius: 0; padding: 0; }
+   background/border/radius so it doesn't double up. Code BLOCKS use a slab-serif
+   monospace (Courier family) — chunkier, more "typewriter/slab" than the inline
+   chip's Menlo. System fonts only (no CDN); to swap in a bundled slab webfont
+   like Space Mono / IBM Plex Mono, self-host a woff2 + @font-face here. */
+.note-body-input pre, .note-body-input pre code {
+  background: none; border: none; border-radius: 0; padding: 0;
+  font-family: 'Courier New', 'Courier', monospace;
+}
+.note-body-input pre { padding: 12px 16px; }   /* re-assert block padding (reset above) */
+/* Floating "copy" button for code blocks. Lives at body level (NOT inside the
+   contenteditable — the note saves innerHTML verbatim, so an in-content button
+   would be stored). Positioned over the hovered block's top-right via JS. */
+.code-copy-btn {
+  position: fixed; z-index: 50;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-muted); cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+.code-copy-btn:hover { color: var(--text); background: var(--surface-2); }
+.code-copy-btn.hidden { display: none; }
+.code-copy-btn .icon-check { display: none; }
+.code-copy-btn.copied { color: var(--accent); }
+.code-copy-btn.copied .icon-copy { display: none; }
+.code-copy-btn.copied .icon-check { display: inline-flex; }
 .note-body-input a { color: var(--link, #2563EB); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .note-body-input blockquote {
   margin: 0.7em 0; padding: 0.1em 0 0.1em 1em;

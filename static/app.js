@@ -433,6 +433,7 @@ const CHANGELOG = [
     "Connect Claude to your journal (MCP) — a new opt-in Connections setting lets Claude read, search, create, tag, and organize your notes from Claude Code or the Claude API. Off by default; access needs a token you generate and can revoke any time, and Claude can never permanently delete or overwrite a note.",
     "Readable in every theme — all 48 themes now meet WCAG AA text contrast, so hint text, counts, and muted labels are legible even in the darker themes that were hard to read before.",
     "Keyboard shortcuts for text styles — on Mac ⌥⌘1, 2, 3 for headings, +4 for a quote, +0 for paragraph (Ctrl+Shift on Windows/Linux).",
+    "Code blocks got a slabbier monospace font and a copy button — hover a block to copy its contents in one click.",
     "Bug fixes & improvements",
   ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [
@@ -898,6 +899,49 @@ const _menuBackdropObserver = new MutationObserver(syncMenuBackdrop);
 _menuBackdropObserver.observe(document.body, { childList: true });
 ["pointerdown", "click"].forEach(evt =>
   menuBackdrop.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); closeAllFloatingMenus(); }));
+
+// ── Copy button for code blocks ─────────────────────────────────────────────
+// A single floating button that appears at the top-right of the <pre> you hover.
+// Body-level (never inside the contenteditable, which saves innerHTML verbatim),
+// so it copies a block's contents without ever being part of the note's HTML.
+const codeCopyBtn = $("code-copy-btn");
+let codeCopyPre = null, codeCopyHideT = null;
+function positionCodeCopy(pre) {
+  const r = pre.getBoundingClientRect();
+  codeCopyBtn.style.top = (r.top + 8) + "px";
+  codeCopyBtn.style.right = Math.max(8, window.innerWidth - r.right + 8) + "px";
+}
+function showCodeCopy(pre) {
+  clearTimeout(codeCopyHideT);
+  if (pre !== codeCopyPre) codeCopyBtn.classList.remove("copied");
+  codeCopyPre = pre;
+  positionCodeCopy(pre);
+  codeCopyBtn.classList.remove("hidden");
+}
+function hideCodeCopySoon() { codeCopyHideT = setTimeout(() => codeCopyBtn.classList.add("hidden"), 150); }
+// Hover a <pre> in the editor OR the read-only note view.
+["note-body", "note-view-content"].forEach(id => {
+  const host = document.getElementById(id);
+  if (!host) return;
+  host.addEventListener("mouseover", e => {
+    const pre = e.target.closest("pre");
+    if (pre && host.contains(pre)) showCodeCopy(pre); else hideCodeCopySoon();
+  });
+  host.addEventListener("mouseleave", hideCodeCopySoon);
+});
+codeCopyBtn.addEventListener("mouseenter", () => clearTimeout(codeCopyHideT));
+codeCopyBtn.addEventListener("mouseleave", hideCodeCopySoon);
+codeCopyBtn.addEventListener("mousedown", e => e.preventDefault()); // keep the editor caret/selection
+codeCopyBtn.addEventListener("click", async () => {
+  if (!codeCopyPre) return;
+  try { await navigator.clipboard.writeText(codeCopyPre.innerText.replace(/\n$/, "")); }
+  catch { return; }
+  codeCopyBtn.classList.add("copied");
+  clearTimeout(codeCopyHideT);
+  setTimeout(() => codeCopyBtn.classList.remove("copied"), 1200);
+});
+// position:fixed button — hide on any scroll so it can't drift off its block.
+document.addEventListener("scroll", () => codeCopyBtn.classList.add("hidden"), true);
 
 // Mobile floating island (Search · New note) — reuses the top search field and the
 // notes-pane "+" handlers.
