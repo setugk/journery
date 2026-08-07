@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an idea for Journery
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem or use case behind the request — not just the solution. This helps me find the simplest way to solve it.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: What would you like to see?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you've tried or considered? (optional)

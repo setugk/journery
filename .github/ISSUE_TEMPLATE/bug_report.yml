@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in Journery isn't working right
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report this — a few details help me fix it faster.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect to happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+  - type: input
+    id: version
+    attributes:
+      label: Journery version
+      description: "Settings → General → About"
+      placeholder: e.g. 1.31.5
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How are you hosting it?
+      options:
+        - Docker (single command)
+        - Docker Compose
+        - PikaPods
+        - Native (python app.py)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Browser & device
+      placeholder: e.g. Safari on iPhone 15, or Chrome on Windows
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / console errors (optional)
+      description: "Container logs (`docker logs journery`) or browser console errors, if any."
+      render: shell

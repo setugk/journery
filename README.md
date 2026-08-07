@@ -44,6 +44,8 @@ Kick the tyres at **[demo.myjournery.com](https://demo.myjournery.com)** — a f
 
 You own your data — it lives on hardware you control, and the Journery author never sees it or hosts it. Pick whichever path fits you.
 
+> ⚠️ **Journery has no login by default.** That's fine on localhost or a private home network — but it means *anyone who can reach the URL can read your journal.* **Before you make Journery reachable from the internet, put authentication in front of it:** set `JOURNERY_USER` / `JOURNERY_PASS` (below), or gate it behind Cloudflare Access or a reverse-proxy login. Don't raw-port-forward it. It's your private journal — treat the front door accordingly.
+
 ### Easiest — host it on PikaPods (no server of your own)
 
 No NAS, no spare machine, no command line? [**PikaPods**](https://www.pikapods.com) runs Journery for you for about **$1–2/month**. Your notes live on *your* pod — nobody else can see them, and no one hosts your data but you.
@@ -89,6 +91,24 @@ docker compose up -d
 
 Open **http://localhost:5050**. Data lives in `./data`.
 
+### Updating
+
+Journery is self-hosted, so *you* pull updates when you want them — nothing is ever pushed to your instance. New versions ship to the same image, and **your notes upgrade themselves on start** (the database migrates automatically — you never run a migration by hand).
+
+```bash
+# Docker
+docker pull ghcr.io/setugk/journery:latest
+docker rm -f journery
+docker run -d --name journery -p 5050:5000 -v ~/journery-data:/data ghcr.io/setugk/journery:latest
+
+# Docker Compose
+docker compose pull && docker compose up -d
+```
+
+**PikaPods:** click **Update** on your pod. **Hands-off:** point [Watchtower](https://containrrr.dev/watchtower/) at the container and it pulls new releases for you.
+
+After updating, **Settings → What's New** shows what changed. To stay on a fixed version instead of the newest, pin a release tag (e.g. `:v1.31.5`) rather than `:latest`.
+
 ### Where's my data?
 
 Everything is a single SQLite file inside the volume you mounted (`~/journery-data` or `./data` above). **Point that at anywhere you like** — a folder on your NAS, an external drive, a named Docker volume:
@@ -98,11 +118,25 @@ Everything is a single SQLite file inside the volume you mounted (`~/journery-da
 -v journery-data:/data          # a managed Docker volume
 ```
 
-Back it up by copying that folder. Nothing ever leaves your machine. And any time you want your notes as portable files, **Settings → Data → Export as Markdown** gives you a `.zip` of `.md` files (one per note, folders preserved, with YAML front matter) — open them in Obsidian, Bear, or any editor.
+Back it up by copying that folder. Nothing ever leaves your machine.
 
-### Add a password (optional)
+### Backups
 
-By default Journery runs with no login (handy on a private network). To require one, set two env vars:
+Your journal is a single SQLite file, so backups are easy — and worth automating, because "I'll copy the folder later" rarely happens.
+
+**Automated nightly snapshot** (WAL-safe — runs fine while Journery is live). Create a backup folder first, then add this to your crontab (`crontab -e`):
+
+```bash
+0 3 * * * sqlite3 ~/journery-data/clippery.db ".backup '$HOME/journery-backups/journery-$(date +\%F).db'"
+```
+
+Point the destination at anything durable — another drive, a NAS, a synced folder.
+
+**Portable, app-independent copies:** **Settings → Data** exports your whole journal as **Markdown** (a `.zip` of `.md` files, folders preserved, with YAML front matter — opens in Obsidian, Bear, or any editor) or **JSON** (a full backup you can re-import). Grab one before any big change.
+
+### Add a login
+
+By default Journery runs with **no login** — fine on localhost or a trusted home network, but see the warning at the top of this section before exposing it anywhere. To require a username and password, set two env vars:
 
 ```bash
 docker run -d -p 5050:5000 -v ~/journery-data:/data \
@@ -146,7 +180,7 @@ Journery can expose a **[Model Context Protocol](https://modelcontextprotocol.io
 
 Turn it on in **Settings → Connections**: flip **Claude access (MCP)** on, and Journery generates a **bearer token** (shown once — copy it). Your MCP URL is just your Journery address + **`/mcp`**. The Settings screen gives you the exact `claude mcp add …` command to paste into Claude Code.
 
-**What the assistant can and can't do.** A deliberately safe subset: list, search, read, create, and append to notes; add tags; move notes between folders; create folders; and move a note to **Trash** (recoverable for 30 days). It **cannot** permanently delete a note or overwrite a note's existing content — so nothing it does is unrecoverable. Everything runs through the token; **revoke it any time** (Settings → Connections → Revoke) to cut off access instantly, and the endpoint stays dead whenever the toggle is off.
+**What the assistant can and can't do.** A deliberately safe subset: list, search, read, create, append to, and — to fix its own earlier output — replace notes; add tags; move notes between folders; create folders; and move a note to **Trash** (recoverable for 30 days). It **cannot permanently delete** a note or empty your Trash. Everything runs through the token; **revoke it any time** (Settings → Connections → Revoke) to cut off access instantly, and the endpoint stays dead whenever the toggle is off.
 
 **Privacy.** This is the second thing in Journery that can talk to an outside program, and only when *you* turn it on and hand *your* AI client *your* token — Journery still never phones home on its own. The assistant you connect (e.g. Claude) will see the notes it reads; that's the point of connecting it. Off by default; nothing changes unless you enable it.
 
@@ -155,6 +189,10 @@ Turn it on in **Settings → Connections**: flip **Claude access (MCP)** on, and
 ### Report a bug or send feedback
 
 Your profile chip (bottom of the sidebar) has a **Report bug / Feedback** option. Whatever you type there — plus the app version and instance name, nothing else — is sent straight to the maintainer to help improve Journery. **Your notes are never included and never touched.** This is the one thing in Journery that talks to an external server by default (everything else is fully local); if you'd rather it didn't, just don't use that menu option — nothing else changes.
+
+## Support
+
+Journery is a solo side project I build because I love it, not for money. I read every issue and every bit of feedback, and I fix what I can — but it's provided **as-is**, on my own time, so response times vary. When you report something, please include your version (Settings → General → About) and how you're hosting it. Be kind. 🙏
 
 ## Stack
 

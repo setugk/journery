@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Try the live demo
+    url: https://demo.myjournery.com
+    about: Kick the tyres before filing anything — data stays in your own browser.
+  - name: Setup, updating, or backup help
+    url: https://github.com/setugk/journery#getting-started
+    about: The README covers install, updating, backups, and putting it online safely.
