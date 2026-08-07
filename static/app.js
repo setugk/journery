@@ -2554,9 +2554,12 @@ function mdActiveBlock() {
   if (!sel || !sel.rangeCount) return null;
   const range = sel.getRangeAt(0);
   let b = range.startContainer;
-  if (b.nodeType === Node.TEXT_NODE) b = b.parentNode;
-  while (b !== noteBody && b.parentNode !== noteBody) b = b.parentNode;
-  return b;
+  if (b && b.nodeType === Node.TEXT_NODE) b = b.parentNode;
+  // Guard against a detached selection (the anchor node — or an ancestor — no
+  // longer in the tree, e.g. mid-edit): only climb through real in-tree nodes,
+  // and return null rather than dereferencing a null parentNode.
+  while (b && b !== noteBody && b.parentNode && b.parentNode !== noteBody) b = b.parentNode;
+  return (b && (b === noteBody || b.parentNode === noteBody)) ? b : null;
 }
 
 function mdBlockText(block) {
@@ -3595,6 +3598,20 @@ noteBody.addEventListener("keydown", e => {
     if (li && liIsEmpty(li)) {
       e.preventDefault();
       const target = outdentLi(li);   // moved <li> (nested) or new <div> (top level)
+      if (target) placeCaretIn(target);
+      updateNoteBodyPlaceholder();
+      scheduleSave();
+      return;
+    }
+    // Caret at the very START of a non-empty bullet → leave the list, turning
+    // this line into a plain paragraph — a keyboard way OUT of a bullet (matching
+    // the empty-bullet exit above). Without this, native Enter here just inserts a
+    // blank bullet above. outdentLi splits the list correctly if we're mid-list.
+    // (Empty bullets are already handled by the branch above.)
+    if (li && caretAtStartOfLi(li)) {
+      e.preventDefault();
+      forceCheckpointBoundary();
+      const target = outdentLi(li);
       if (target) placeCaretIn(target);
       updateNoteBodyPlaceholder();
       scheduleSave();

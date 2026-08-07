@@ -1039,6 +1039,14 @@ body {
    wrapping within a single paragraph is untouched. 0.85em = half of the
    1.7 line-height above. */
 .note-body-input > div { margin-bottom: 0.85em; }
+/* A list belongs to the line directly above it — its intro, or a bold line used
+   as a "heading". Pull it up tight against that line instead of inheriting the
+   full 0.85em paragraph gap, so "title then bullets" reads as one unit rather
+   than the title floating closer to the list ABOVE it than its own. (Real
+   <h1/h2/h3> headings already hug their list via smaller margins, so this only
+   affects paragraph→list.) */
+.note-body-input > div + ul,
+.note-body-input > div + ol { margin-top: -0.55em; }
 .note-body-input h1, .note-body-input h2, .note-body-input h3 {
   color: var(--text); font-weight: 700; line-height: 1.3; margin: 0.5em 0 0.2em;
 }
