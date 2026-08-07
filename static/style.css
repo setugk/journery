@@ -374,7 +374,7 @@ body {
 /* Count right-aligns to the reserved column edge — consistent across all rows */
 .nav-count {
   margin-left: auto;
-  font-size: var(--fs-11); color: var(--text-faint); font-weight: 400;
+  font-size: var(--fs-11); color: var(--text-muted); font-weight: 400;
 }
 
 /* ── Sidebar collapsible sections ───────────────────────────────────── */
@@ -440,7 +440,7 @@ body {
 }
 .year-note-count {
   margin-left: auto;
-  font-size: var(--fs-11); color: var(--text-faint);
+  font-size: var(--fs-11); color: var(--text-muted);
 }
 
 /* ── Tag nav items (pinned + all tags) ──────────────────────────────── */
@@ -471,7 +471,7 @@ body {
 .tag-hash { color: var(--text-faint); font-size: var(--fs-12); margin-right: 2px; }
 /* count right-aligns to the same reserved column as the section counts */
 .tag-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.tag-count { font-size: var(--fs-11); color: var(--text-faint); }
+.tag-count { font-size: var(--fs-11); color: var(--text-muted); }
 
 /* Pin button — appears on hover (desktop) / always (touch) */
 .tag-pin-btn {
@@ -702,7 +702,7 @@ body {
 .note-item-title.untitled { color: var(--text-faint); }
 .note-item-meta {
   display: flex; align-items: center; gap: 8px;
-  font-size: var(--fs-12); color: var(--text-faint);
+  font-size: var(--fs-12); color: var(--text-muted);
   margin-top: 8px;
 }
 .note-item-preview {
@@ -861,7 +861,7 @@ body {
   display: flex; gap: 32px;
 }
 .note-date-item {
-  font-size: var(--fs-12); color: var(--text-faint);
+  font-size: var(--fs-12); color: var(--text-muted);
   display: flex; flex-direction: column; gap: 4px;
 }
 .note-date-label {
@@ -1786,7 +1786,7 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
 }
 .settings-tag-item:last-child { border-bottom: none; }
 .settings-tag-name { flex: 1; font-size: var(--fs-14); color: var(--text); }
-.settings-tag-count { font-size: var(--fs-12); color: var(--text-faint); }
+.settings-tag-count { font-size: var(--fs-12); color: var(--text-muted); }
 .settings-tag-delete {
   width: 28px; height: 28px;
   display: flex; align-items: center; justify-content: center;
@@ -2336,7 +2336,7 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px; margin-top: 4px; flex-wrap: wrap;
 }
-.trash-note-time { font-size: var(--fs-11); color: var(--text-faint); flex-shrink: 0; }
+.trash-note-time { font-size: var(--fs-11); color: var(--text-muted); flex-shrink: 0; }
 .trash-note-actions { display: flex; gap: 4px; }
 .trash-restore-btn, .trash-delete-btn {
   padding: 4px 8px; font-size: var(--fs-11); font-weight: 500; font-family: inherit;
