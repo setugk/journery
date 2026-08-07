@@ -432,7 +432,7 @@ const CHANGELOG = [
   { version: "1.31", date: "Aug 4, 2026", changes: [
     "Connect Claude to your journal (MCP) — a new opt-in Connections setting lets Claude read, search, create, tag, and organize your notes from Claude Code or the Claude API. Off by default; access needs a token you generate and can revoke any time, and Claude can never permanently delete or overwrite a note.",
     "Readable in every theme — all 48 themes now meet WCAG AA text contrast, so hint text, counts, and muted labels are legible even in the darker themes that were hard to read before.",
-    "Keyboard shortcuts for text styles — ⌘/Ctrl+Shift+1, 2, 3 for headings, +4 for a quote, and +0 back to a paragraph.",
+    "Keyboard shortcuts for text styles — on Mac ⌥⌘1, 2, 3 for headings, +4 for a quote, +0 for paragraph (Ctrl+Shift on Windows/Linux).",
     "Bug fixes & improvements",
   ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [
@@ -3646,15 +3646,16 @@ noteBody.addEventListener("keydown", e => {
     }
     if (e.shiftKey && k === "x") { e.preventDefault(); applyFormat("strike"); return; }
     if (e.shiftKey && k === "c") { e.preventDefault(); applyFormat("code"); return; }
-    // Block-format shortcuts: ⌘/Ctrl+Shift+ 0=Paragraph, 1/2/3=H1/H2/H3, 4=Quote.
-    // Match on e.code (the physical key) — e.key for a Shift+digit is the shifted
-    // SYMBOL (!,@,#,$), not the number. NOTE: on macOS ⌘⇧3 / ⌘⇧4 are the system
-    // screenshot shortcuts (intercepted by the OS before the browser), so those two
-    // only reach Journery if the user disables them in System Settings → Keyboard.
-    if (e.shiftKey) {
-      const block = { Digit0: "p", Digit1: "h1", Digit2: "h2", Digit3: "h3", Digit4: "quote" }[e.code];
-      if (block) { e.preventDefault(); applyFormat(block); return; }
-    }
+  }
+
+  // Block-format shortcuts: 0=Paragraph, 1/2/3=H1/H2/H3, 4=Quote.
+  //   macOS:         ⌘⌥ + digit  (⌘⇧3 / ⌘⇧4 are the OS screenshot shortcuts, so we
+  //                  use Option instead — same convention as Notion / Google Docs)
+  //   Windows/Linux: Ctrl+Shift + digit  (no OS clash there)
+  // Match on e.code (physical key) — e.key for a modified digit is a symbol, not the number.
+  if ((e.metaKey && e.altKey) || (e.ctrlKey && e.shiftKey && !e.metaKey)) {
+    const block = { Digit0: "p", Digit1: "h1", Digit2: "h2", Digit3: "h3", Digit4: "quote" }[e.code];
+    if (block) { e.preventDefault(); applyFormat(block); return; }
   }
 
   if ((e.metaKey || e.ctrlKey) && e.key === "s") {
