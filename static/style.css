@@ -156,7 +156,7 @@ body {
   background: none; border: none; outline: none;
   font-size: var(--fs-14); color: var(--text); font-family: inherit;
 }
-.sidebar-search input::placeholder { color: var(--text-faint); }
+.sidebar-search input::placeholder { color: var(--text-muted); }
 /* hide native search clear — we use a custom one */
 .sidebar-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
 
@@ -468,7 +468,7 @@ body {
    only between the pin icon and the label — the hash hugs the tag text with no
    gap between them. */
 .tag-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tag-hash { color: var(--text-faint); font-size: var(--fs-12); margin-right: 2px; }
+.tag-hash { color: var(--text-muted); font-size: var(--fs-12); margin-right: 2px; }
 /* count right-aligns to the same reserved column as the section counts */
 .tag-right { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .tag-count { font-size: var(--fs-11); color: var(--text-muted); }
@@ -492,9 +492,10 @@ body {
    icons line up in the same vertical column as the "Pinned" header icon. */
 .tag-pin-btn.tag-pin-left {
   width: 14px; height: 18px; margin-left: 0; opacity: 1;
-  /* Optically center the top-heavy pin glyph (filled head up top, thin needle
-     below) against the # + tag label — needs ~4px, well past geometric centering. */
-  transform: translateY(4px);
+  /* The pin's box is geometrically centered with the tag label at 0px; nudge 1px
+     to optically center the top-heavy glyph (filled head up top, thin needle
+     below). Measured against the label — larger values sit visibly low. */
+  transform: translateY(1px);
 }
 
 /* Pinned tags section empty state */
@@ -650,7 +651,7 @@ body {
   flex: 1; background: none; border: none; outline: none;
   font-size: var(--fs-13); color: var(--text); font-family: inherit;
 }
-.notes-pane-search input::placeholder { color: var(--text-faint); }
+.notes-pane-search input::placeholder { color: var(--text-muted); }
 
 .notes-section-label {
   padding: 12px 16px 4px;
