@@ -1248,7 +1248,10 @@ input.share-field-control { color: var(--text-2); }
   font-family: ui-monospace, Menlo, monospace; font-size: var(--fs-12);
   overflow-x: auto; white-space: nowrap;
 }
-.mcp-copy-row .settings-export-link { flex: none; align-self: center; white-space: nowrap; }
+.mcp-copy-row .settings-export-link {
+  flex: none; align-self: stretch; white-space: nowrap;   /* match the field's height */
+  display: inline-flex; align-items: center; justify-content: center;
+}
 .mcp-token-value { color: var(--text); font-weight: 600; }
 .mcp-revoke-link {
   background: none; border: none; padding: 8px 0; cursor: pointer;
