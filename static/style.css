@@ -1259,6 +1259,10 @@ input.share-field-control { color: var(--text-2); }
 }
 .mcp-reveal-warn { color: var(--sell, #DC2626); margin-top: 8px; }
 .mcp-cli-label, #mcp-cli-label { margin-top: 14px; }
+/* The trailing explainer under "Add a connection" is a direct child of the field;
+   override .feedback-hint's negative top margin so it doesn't touch the input.
+   (The reveal's inner warning keeps its own tighter 8px — it's not a direct child.) */
+.mcp-field > .feedback-hint { margin-top: 14px; }
 /* Connection rows — one per named MCP token. */
 .mcp-conn-empty { font-size: var(--fs-13); color: var(--text-muted); margin: 0; }
 .mcp-conn-row {
