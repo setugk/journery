@@ -1323,7 +1323,7 @@ function renderSearchResults(notes, q) {
     return;
   }
   searchResultsBox.innerHTML = notes.map(n => {
-    const preview = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 70);
+    const preview = plainPreview(n.body, 70);
     return `<button class="search-result-item" type="button" data-note-id="${n.id}">
       <div class="search-result-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
       ${preview ? `<div class="search-result-preview">${esc(preview)}</div>` : ""}
@@ -2121,6 +2121,15 @@ function esc(s) {
     .replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
 
+// Plain-text preview of a note body for list snippets: strips tags AND decodes
+// entities (&nbsp;, &middot;, …) so previews read as real text, not literal
+// entity codes. DOMParser is inert — it runs no scripts and loads no resources.
+function plainPreview(body, n) {
+  const doc = new DOMParser().parseFromString(body || "", "text/html");
+  const text = (doc.body.textContent || "").replace(/\s+/g, " ").trim();
+  return n ? text.slice(0, n) : text;
+}
+
 const CHEV_RIGHT_SVG = `<svg class="folder-list-item-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
 
 function renderNotesList() {
@@ -2144,7 +2153,7 @@ function renderNotesList() {
       const daysLeft = Math.max(0, 30 - daysGone);
       const deletedStr = daysGone === 0 ? "Deleted today" : `Deleted ${daysGone}d ago`;
       const leftStr = daysLeft === 0 ? "expires soon" : `${daysLeft}d left`;
-      const preview = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+      const preview = plainPreview(n.body, 60);
       const isActive = state.note && state.note.id === n.id;
       return `
         <div class="note-item trash-note-item${isActive ? " active" : ""}" data-note-id="${n.id}">
@@ -2219,7 +2228,7 @@ function renderNotesList() {
   html += notes.map(n => {
     const isActive   = !state.selectMode && state.note && state.note.id === n.id;
     const isSelected = state.selectMode && state.selectedNoteIds.has(n.id);
-    const preview  = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+    const preview  = plainPreview(n.body, 80);
     const chips    = n.tags.map(t => `<span class="note-tag-chip">#${esc(t)}</span>`).join("");
     const dateStr = timeAgo(state.dateDisplay === "updated" ? n.updated_at : n.created_at);
     return `
@@ -2241,7 +2250,7 @@ function renderNotesList() {
     </button>`;
     if (isTrashExp) {
       html += state.tagTrashedNotes.map(n => {
-        const preview = (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 80);
+        const preview = plainPreview(n.body, 80);
         return `
           <div class="note-item note-item-trashed" data-note-id="${n.id}">
             <div class="note-item-title${n.title ? "" : " untitled"}">${n.title ? esc(n.title) : "Untitled"}</div>
@@ -4971,7 +4980,7 @@ $("ctx-copy-btn").addEventListener("click", () => {
   const n = contextMenuNote;
   hideNoteCtxMenu();
   if (!n) return;
-  const text = [n.title?.trim(), (n.body || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()]
+  const text = [n.title?.trim(), plainPreview(n.body)]
     .filter(Boolean).join("\n\n");
   navigator.clipboard.writeText(text)
     .then(() => showToast("Copied to clipboard"))

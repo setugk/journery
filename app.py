@@ -5,6 +5,7 @@ import hmac
 import json
 import secrets
 import zipfile
+import html as _html
 from html.parser import HTMLParser
 from functools import wraps
 from datetime import datetime, timezone, timedelta
@@ -32,7 +33,7 @@ DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 # traffic. Never set this on prod/beta (self-hosted instances get no
 # analytics of any kind — see README's privacy promise). Empty = no beacon.
 CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
-APP_VERSION     = "1.31.14"
+APP_VERSION     = "1.31.15"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -743,6 +744,7 @@ def _mcp_bearer_ok():
 
 def _text_snippet(html, n=200):
     text = re.sub(r"<[^>]+>", " ", html or "")
+    text = _html.unescape(text)          # decode &nbsp;, &middot;, &amp; → real chars
     text = re.sub(r"\s+", " ", text).strip()
     return text[:n]
 
