@@ -1173,19 +1173,24 @@ body {
    (Courier was too thin/light). System fonts only (no CDN); for a truly slab
    webfont (Space Mono / IBM Plex Mono), self-host a woff2 + @font-face here. */
 .note-body-input pre, .note-body-input pre code { font-family: 'Monaco', 'Consolas', 'Menlo', monospace; }
-/* Floating "copy" button for code blocks. Lives at body level (NOT inside the
-   contenteditable — the note saves innerHTML verbatim, so an in-content button
-   would be stored). Positioned over the hovered block's top-right via JS. */
+/* Copy buttons for code blocks. One per <pre>, held in a body-level layer (NOT
+   inside the contenteditable — the note saves innerHTML verbatim, so an in-content
+   button would be stored). Positioned over each block's top-right via JS.
+   Desktop: a block's button fades in only while the cursor is over that block
+   (.show, set by JS). Touch: every button carries .show so they're always visible. */
+.code-copy-layer { position: fixed; inset: 0; z-index: 50; pointer-events: none; }
 .code-copy-btn {
-  position: fixed; z-index: 50;
+  position: fixed;
   display: inline-flex; align-items: center; justify-content: center;
   width: 26px; height: 26px; padding: 0;
   background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
   color: var(--text-muted); cursor: pointer;
-  transition: color 0.1s, background 0.1s;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.12s, color 0.1s, background 0.1s;
 }
+.code-copy-btn.show { opacity: 1; pointer-events: auto; }
 .code-copy-btn:hover { color: var(--text); background: var(--surface-2); }
-.code-copy-btn.hidden { display: none; }
+.code-copy-btn.offscreen { display: none; }
 .code-copy-btn .icon-check { display: none; }
 .code-copy-btn.copied { color: var(--accent); }
 .code-copy-btn.copied .icon-copy { display: none; }

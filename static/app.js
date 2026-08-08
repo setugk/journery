@@ -902,46 +902,99 @@ _menuBackdropObserver.observe(document.body, { childList: true });
 
 // ── Copy button for code blocks ─────────────────────────────────────────────
 // A single floating button that appears at the top-right of the <pre> you hover.
-// Body-level (never inside the contenteditable, which saves innerHTML verbatim),
-// so it copies a block's contents without ever being part of the note's HTML.
-const codeCopyBtn = $("code-copy-btn");
-let codeCopyPre = null, codeCopyHideT = null;
-function positionCodeCopy(pre) {
-  const r = pre.getBoundingClientRect();
-  codeCopyBtn.style.top = (r.top + 8) + "px";
-  codeCopyBtn.style.right = Math.max(8, window.innerWidth - r.right + 8) + "px";
+// One copy button per <pre>, held in a body-level layer (never inside the
+// contenteditable, whose innerHTML is saved verbatim). Each button tracks its own
+// block. Desktop: a block's button fades in only while the cursor is over that
+// block (no single fixed button chasing the mouse — that was the finicky part).
+// Touch: every button carries .show, so they're always visible. Buttons are
+// created/removed/repositioned whenever the note's content or scroll changes.
+const codeCopyLayer = $("code-copy-layer");
+const codeCopyTouch = matchMedia("(hover: none)").matches;
+const codeCopyBtns = new Map();   // <pre> -> <button>
+const CODE_COPY_ICONS =
+  '<svg class="icon-copy" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>' +
+  '<svg class="icon-check" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+function activeCodeHost() {
+  const v = $("note-view-content");
+  if (v && v.offsetParent) return v;                       // read-only view page
+  if (noteBody && noteBody.offsetParent) return noteBody;   // editor
+  return null;
 }
-function showCodeCopy(pre) {
-  clearTimeout(codeCopyHideT);
-  if (pre !== codeCopyPre) codeCopyBtn.classList.remove("copied");
-  codeCopyPre = pre;
-  positionCodeCopy(pre);
-  codeCopyBtn.classList.remove("hidden");
-}
-function hideCodeCopySoon() { codeCopyHideT = setTimeout(() => codeCopyBtn.classList.add("hidden"), 150); }
-// Hover a <pre> in the editor OR the read-only note view.
-["note-body", "note-view-content"].forEach(id => {
-  const host = document.getElementById(id);
-  if (!host) return;
-  host.addEventListener("mouseover", e => {
-    const pre = e.target.closest("pre");
-    if (pre && host.contains(pre)) showCodeCopy(pre); else hideCodeCopySoon();
+function makeCodeCopyBtn(pre) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "code-copy-btn" + (codeCopyTouch ? " show" : "");
+  btn.title = "Copy code";
+  btn.setAttribute("aria-label", "Copy code");
+  btn.innerHTML = CODE_COPY_ICONS;
+  btn.addEventListener("mousedown", e => e.preventDefault()); // keep the editor caret/selection
+  // The button lives outside #note-body, so hovering it fires the host's mouseleave.
+  // Keep it lit while the cursor is on it; hide only when leaving to neither the
+  // button nor a code block (its own block re-shows it via the host mousemove).
+  btn.addEventListener("mouseleave", e => {
+    if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest("pre")) return;
+    hideAllCodeCopy();
   });
-  host.addEventListener("mouseleave", hideCodeCopySoon);
-});
-codeCopyBtn.addEventListener("mouseenter", () => clearTimeout(codeCopyHideT));
-codeCopyBtn.addEventListener("mouseleave", hideCodeCopySoon);
-codeCopyBtn.addEventListener("mousedown", e => e.preventDefault()); // keep the editor caret/selection
-codeCopyBtn.addEventListener("click", async () => {
-  if (!codeCopyPre) return;
-  try { await navigator.clipboard.writeText(codeCopyPre.innerText.replace(/\n$/, "")); }
-  catch { return; }
-  codeCopyBtn.classList.add("copied");
-  clearTimeout(codeCopyHideT);
-  setTimeout(() => codeCopyBtn.classList.remove("copied"), 1200);
-});
-// position:fixed button — hide on any scroll so it can't drift off its block.
-document.addEventListener("scroll", () => codeCopyBtn.classList.add("hidden"), true);
+  btn.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(pre.innerText.replace(/\n$/, "")); }
+    catch { return; }
+    btn.classList.add("copied");
+    clearTimeout(btn._copiedT);
+    btn._copiedT = setTimeout(() => btn.classList.remove("copied"), 1200);
+  });
+  return btn;
+}
+function positionCodeCopyBtn(pre, btn) {
+  const r = pre.getBoundingClientRect();
+  // Hide when the block is scrolled out of its own scroll container's viewport.
+  const clip = (pre.closest("#editor-body, .note-view-article, #note-view") || document.documentElement)
+                 .getBoundingClientRect();
+  const visible = r.bottom > clip.top + 6 && r.top < clip.bottom - 6;
+  btn.classList.toggle("offscreen", !visible);
+  if (!visible) return;
+  btn.style.top = (r.top + 8) + "px";
+  btn.style.right = Math.max(8, window.innerWidth - r.right + 8) + "px";
+}
+function syncCodeCopy() {
+  const host = activeCodeHost();
+  const pres = host ? [...host.querySelectorAll("pre")] : [];
+  for (const [pre, btn] of codeCopyBtns) {   // drop buttons whose block is gone
+    if (!pres.includes(pre)) { btn.remove(); codeCopyBtns.delete(pre); }
+  }
+  for (const pre of pres) {
+    let btn = codeCopyBtns.get(pre);
+    if (!btn) { btn = makeCodeCopyBtn(pre); codeCopyLayer.appendChild(btn); codeCopyBtns.set(pre, btn); }
+    positionCodeCopyBtn(pre, btn);
+  }
+}
+let _codeCopyRAF = 0;
+function scheduleCodeCopySync() {
+  if (_codeCopyRAF) return;
+  _codeCopyRAF = requestAnimationFrame(() => { _codeCopyRAF = 0; syncCodeCopy(); });
+}
+function hideAllCodeCopy() {
+  for (const btn of codeCopyBtns.values()) btn.classList.remove("show");
+}
+// Desktop only: reveal the button for the block currently under the cursor.
+if (!codeCopyTouch) {
+  ["note-body", "note-view-content"].forEach(id => {
+    const host = document.getElementById(id);
+    if (!host) return;
+    host.addEventListener("mousemove", e => {
+      const pre = e.target.closest("pre");
+      for (const [p, btn] of codeCopyBtns) btn.classList.toggle("show", p === pre);
+    });
+    host.addEventListener("mouseleave", e => {
+      // Moving onto the copy button (body-level, outside the host) also triggers
+      // this — don't hide then, or the button vanishes under the cursor.
+      if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest(".code-copy-btn")) return;
+      hideAllCodeCopy();
+    });
+  });
+}
+document.addEventListener("scroll", scheduleCodeCopySync, true);
+window.addEventListener("resize", scheduleCodeCopySync);
 
 // Mobile floating island (Search · New note) — reuses the top search field and the
 // notes-pane "+" handlers.
@@ -2998,6 +3051,7 @@ function applyUndoSnapshot(snap) {
 }
 
 new MutationObserver(() => {
+  scheduleCodeCopySync();   // create/remove/reposition code-block copy buttons on any edit
   if (suppressUndoTracking) return;
   if (!pendingCheckpoint) {
     pendingCheckpoint = lastQuietSnapshot || undoCaptureSnapshot();
@@ -5132,6 +5186,7 @@ async function renderNoteView(id) {
     const content = $("note-view-content");
     content.innerHTML = bodyToHtml(note.body || "");
     content.querySelectorAll("a").forEach(a => { a.target = "_blank"; a.rel = "noopener"; });
+    scheduleCodeCopySync();   // read-only view isn't under the editor observer
     const tagsEl = $("note-view-tags");
     tagsEl.innerHTML = (note.tags || []).map(t => `<span class="nv-tag">#${esc(t)}</span>`).join("");
     tagsEl.classList.toggle("hidden", !(note.tags || []).length);
