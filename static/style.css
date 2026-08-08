@@ -1236,8 +1236,7 @@ input.share-field-control { color: var(--text-2); }
 /* No global `.hidden { display:none }` exists in this app — each element hidden
    via `.hidden` needs its own rule (same gotcha as the share controls). */
 #mcp-details.hidden,
-#mcp-token-none.hidden,
-#mcp-token-active.hidden,
+#mcp-token-reveal { margin-top: 14px; }   /* separate the revealed token from the input row above */
 #mcp-token-reveal.hidden { display: none; }
 .mcp-field { margin-bottom: 18px; }
 .mcp-field:last-child { margin-bottom: 0; }
