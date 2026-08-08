@@ -615,9 +615,21 @@ function renderMcpConnections(tokens) {
   host.innerHTML = tokens.map(mcpConnectionRow).join("");
 }
 
-function mcpHideReveal() {
-  $("mcp-token-reveal").classList.add("hidden");
+// Progressive add flow — collapsed CTA → name form → one-time token reveal.
+function mcpResetAdd() {
+  $("mcp-add-form").classList.add("hidden");
+  $("mcp-token-reveal").classList.add("hidden");   // a token is never persisted across re-opens
+  $("mcp-add-cta").classList.remove("hidden");
+  $("mcp-token-name").value = "";
   $("mcp-token-value").value = "";
+}
+
+function mcpOpenAddForm() {
+  $("mcp-token-reveal").classList.add("hidden");
+  $("mcp-add-cta").classList.add("hidden");
+  $("mcp-add-form").classList.remove("hidden");
+  $("mcp-token-name").value = "";
+  $("mcp-token-name").focus();
 }
 
 async function renderMcpSettings() {
@@ -629,8 +641,7 @@ async function renderMcpSettings() {
   $("mcp-enabled-toggle").classList.toggle("on", cfg.enabled);
   $("mcp-details").classList.toggle("hidden", !cfg.enabled);
   renderMcpConnections(cfg.tokens);
-  $("mcp-token-name").value = "";
-  mcpHideReveal();   // a revealed token is never persisted across re-opens
+  mcpResetAdd();
 }
 
 function mcpCopy(inputId, btn) {
@@ -646,11 +657,14 @@ async function mcpAddConnection() {
   const name = $("mcp-token-name").value.trim() || "Connection";
   const { token, config } = await api("POST", "/api/mcp/token", { name });
   renderMcpConnections(config.tokens);
-  $("mcp-token-name").value = "";
-  // Reveal the plaintext once, with a ready-to-paste example command.
+  // Replace the name form with just the generated token (+ copy, warning,
+  // example command); keep the CTA so another connection can be added.
   $("mcp-token-value").value = token;
   $("mcp-cli").value = mcpCliCommand(token);
+  $("mcp-add-form").classList.add("hidden");
   $("mcp-token-reveal").classList.remove("hidden");
+  $("mcp-add-cta").classList.remove("hidden");
+  $("mcp-token-name").value = "";
   showToast("Connection added");
 }
 
@@ -660,9 +674,10 @@ $("mcp-enabled-toggle")?.addEventListener("click", async () => {
   $("mcp-enabled-toggle").classList.toggle("on", cfg.enabled);
   $("mcp-details").classList.toggle("hidden", !cfg.enabled);
   renderMcpConnections(cfg.tokens);
-  mcpHideReveal();
+  mcpResetAdd();
 });
 
+$("mcp-add-cta")?.addEventListener("click", mcpOpenAddForm);
 $("mcp-add-btn")?.addEventListener("click", mcpAddConnection);
 $("mcp-token-name")?.addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); mcpAddConnection(); }

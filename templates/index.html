@@ -642,26 +642,39 @@
               <div id="mcp-connections"></div>
             </div>
 
-            <!-- Add a new connection (names its token). -->
+            <!-- Add a new connection — progressive: a CTA opens the name form;
+                 generating replaces it with the one-time token. -->
             <div class="mcp-field">
-              <label class="share-field-label" for="mcp-token-name">Add a connection</label>
-              <div class="mcp-copy-row">
-                <input type="text" class="share-field-control" id="mcp-token-name" maxlength="60" placeholder="e.g. Claude Code on my laptop">
-                <button class="btn-primary" id="mcp-add-btn">Generate token</button>
+              <!-- Name form (hidden until the CTA opens it) -->
+              <div id="mcp-add-form" class="hidden">
+                <label class="share-field-label" for="mcp-token-name">Name this connection</label>
+                <div class="mcp-copy-row">
+                  <input type="text" class="share-field-control" id="mcp-token-name" maxlength="60" placeholder="e.g. Claude Code on my laptop">
+                  <button class="btn-primary" id="mcp-add-btn">Generate token</button>
+                </div>
               </div>
-              <!-- Freshly generated — revealed once -->
+
+              <!-- Freshly generated token — shown once -->
               <div id="mcp-token-reveal" class="hidden">
+                <label class="share-field-label">Your access token</label>
                 <div class="mcp-copy-row">
                   <input type="text" class="share-field-control mcp-token-value" id="mcp-token-value" readonly>
                   <button class="settings-export-link" id="mcp-token-copy">Copy</button>
                 </div>
-                <p class="feedback-hint mcp-reveal-warn">Copy this now — it won't be shown again. Anyone with this token can read and edit your notes.</p>
-                <label class="share-field-label" id="mcp-cli-label">Add it to your AI client (example: Claude Code)</label>
+                <div class="mcp-warn-banner" role="alert">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span>Copy this now — it won't be shown again. Anyone with this token can read and edit your notes.</span>
+                </div>
+                <label class="share-field-label mcp-cli-label" id="mcp-cli-label">Add it to your AI client (example: Claude Code)</label>
                 <div class="mcp-copy-row">
                   <input type="text" class="share-field-control" id="mcp-cli" readonly>
                   <button class="settings-export-link" id="mcp-cli-copy">Copy</button>
                 </div>
               </div>
+
+              <!-- Collapsed CTA -->
+              <button class="btn-secondary mcp-add-cta" id="mcp-add-cta">+ Add a new connection</button>
+
               <p class="feedback-hint">A connected AI can list, search, create, tag, and organize notes, and move them to Trash. It can't permanently delete a note. Revoke any connection any time to cut off its access. Other MCP clients connect with the same server URL and token.</p>
             </div>
           </div>
