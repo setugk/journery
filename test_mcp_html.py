@@ -43,12 +43,21 @@ class TestValidatorContract(unittest.TestCase):
             htmlschema.validate_html(_sample(tag))  # must not raise
 
     def test_each_unsupported_tag_is_rejected_and_named(self):
+        # NOTE: div / strong / em / strike are NOT here — they're part of the
+        # editor's own vocabulary (it emits <div> on Enter etc.), so they must be
+        # ACCEPTED, else the editor's own notes can't be updated. See
+        # TestEditorContentRoundTrips.
         for tag in ("table", "tr", "td", "img", "span", "font", "h4", "h6",
-                    "script", "iframe", "div", "strong", "em"):
+                    "script", "iframe", "section", "article"):
             with self.assertRaises(htmlschema.UnsupportedHtmlError) as cm:
                 htmlschema.validate_html(f"<{tag}>x</{tag}>")
             self.assertIn(f"'{tag}'", cm.exception.message,
                           f"error for <{tag}> must name the tag")
+
+    def test_editor_synonyms_are_accepted(self):
+        # These render fine and the editor emits them, so they must NOT be rejected.
+        for tag in ("div", "strong", "em", "strike"):
+            htmlschema.validate_html(f"<{tag}>x</{tag}>")  # must not raise
 
     def test_error_lists_the_full_supported_set(self):
         # Assert by PARSING the message, not string equality.
@@ -61,8 +70,8 @@ class TestValidatorContract(unittest.TestCase):
         self.assertEqual(listed, set(htmlschema.SUPPORTED_TAGS))
 
     def test_common_offenders_carry_a_substitution(self):
-        for tag, needle in [("table", "<ul>"), ("img", "<a href>"),
-                            ("strong", "<b>"), ("h4", "<h3>"), ("div", "<p>")]:
+        for tag, needle in [("table", "<ul>"), ("img", "<a href>"), ("h4", "<h3>"),
+                            ("span", "<b>")]:
             with self.assertRaises(htmlschema.UnsupportedHtmlError) as cm:
                 htmlschema.validate_html(f"<{tag}>x</{tag}>")
             self.assertIn("Suggestion:", cm.exception.message)
@@ -92,13 +101,14 @@ class TestNoSchemaDrift(unittest.TestCase):
         m = re.search(r"PASTE_ALLOWED_TAGS\s*=\s*new Set\(\[(.*?)\]\)", src, re.S)
         self.assertIsNotNone(m, "PASTE_ALLOWED_TAGS not found in static/app.js")
         paste = {t.lower() for t in re.findall(r"'([A-Za-z0-9]+)'", m.group(1))}
-        # normalize the synonyms/div the editor accepts from foreign pasted HTML
-        normalized = {htmlschema.TAG_ALIASES.get(t, t) for t in paste}
+        # TRUE 1:1 binding — the validator's accepted set IS the editor's vocabulary,
+        # exactly (no synonym-folding). If they differ, either the editor gained a
+        # tag the validator would reject (breaking round-trips) or vice-versa.
         self.assertEqual(
-            normalized, set(htmlschema.SUPPORTED_TAGS),
-            "editor schema (app.js PASTE_ALLOWED_TAGS) drifted from "
-            "htmlschema.SUPPORTED_TAGS — update the constant so the MCP tool "
-            "description regenerates in the same commit.")
+            paste, set(htmlschema.SUPPORTED_TAGS),
+            "editor schema (app.js PASTE_ALLOWED_TAGS) and htmlschema.SUPPORTED_TAGS "
+            "differ — they must be identical so the validator never rejects markup "
+            "the editor itself produces, and so the tool description stays accurate.")
 
     def test_description_is_generated_from_the_constant(self):
         desc = htmlschema.body_param_description()
@@ -149,12 +159,29 @@ class TestWriteToolsAndRepairLoop(unittest.TestCase):
     def test_update_note_rejects_unsupported_html(self):
         note = app._tool_create_note({"title": "t", "body": "<p>x</p>"})["note"]
         with self.assertRaises(htmlschema.UnsupportedHtmlError):
-            app._tool_update_note({"note_id": note["id"], "body": "<div>oops</div>"})
+            app._tool_update_note({"note_id": note["id"], "body": "<table>oops</table>"})
 
     def test_update_note_is_registered_as_a_tool(self):
         names = {t["name"] for t in app.MCP_TOOLS}
         self.assertIn("update_note", names)
         self.assertIn("update_note", app.MCP_HANDLERS)
+
+    def test_real_editor_authored_body_survives_the_repair_loop(self):
+        # The body a contenteditable editor actually emits: <div> lines, &nbsp;,
+        # <b>/<strong>. Acceptance criterion 3 — an agent must be able to repair
+        # such a note (get_note → edit → update_note) with NO human. This regressed
+        # once when div/strong were rejected; guard it.
+        editor_body = ('<div>Trip to <b>Japan</b>&nbsp;— day one</div>'
+                       '<div><strong>Morning:</strong> Shibuya</div>'
+                       '<div><br></div>')
+        note = app._tool_create_note({"title": "Japan", "body": editor_body})["note"]
+        fetched = app._tool_get_note({"note_id": note["id"]})["body"]
+        self.assertEqual(fetched, editor_body, "editor body must round-trip through create/get")
+        # agent appends a fix and rewrites the whole body — must NOT be rejected
+        repaired = fetched + '<ul><li>Senso-ji · 2pm</li></ul>'
+        result = app._tool_update_note({"note_id": note["id"], "body": repaired})
+        self.assertTrue(result["updated"])
+        self.assertEqual(app._tool_get_note({"note_id": note["id"]})["body"], repaired)
 
 
 if __name__ == "__main__":

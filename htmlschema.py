@@ -15,33 +15,32 @@ and the anti-drift test fails.
 """
 from html.parser import HTMLParser
 
-# Canonical, display-ordered — one tag per style (b not strong, i not em, s not
-# strike/del), so the contract an agent reads is exact and minimal. Anything not
-# in this set is rejected on write with an actionable message.
+# EXACTLY the editor's own vocabulary — the lowercased contents of
+# PASTE_ALLOWED_TAGS in static/app.js. This is a TRUE 1:1 binding (enforced by
+# test_mcp_html.py), not a curated subset: it MUST include everything the
+# contenteditable editor emits — notably <div> (produced on every Enter and by the
+# Paragraph format) and the <strong>/<em>/<strike> that some browsers' execCommand
+# yields for bold/italic/strike. Excluding those (an earlier "clean canonical"
+# mistake) made the validator reject notes the editor itself authored, so
+# get_note → update_note failed on real notes and the self-repair loop was broken.
+# Rejecting markup our own editor produces is the wrong tradeoff — genuinely
+# unsupported tags (table, img, script, h4+, …) are still rejected below.
 SUPPORTED_TAGS = (
-    "h1", "h2", "h3", "p", "br",
-    "b", "i", "u", "s", "code", "a",
-    "ul", "ol", "li", "pre", "blockquote", "hr",
+    "h1", "h2", "h3", "p", "div", "blockquote", "pre", "hr",
+    "ul", "ol", "li",
+    "b", "strong", "i", "em", "u", "s", "strike", "code", "a", "br",
 )
 SUPPORTED_TAGS_SET = frozenset(SUPPORTED_TAGS)
-
-# Renderable-but-non-canonical tags → the canonical tag to use instead. Two jobs:
-# (1) drive the "use <b> instead" suggestions below; (2) let the anti-drift test
-# reconcile SUPPORTED_TAGS with the editor's paste whitelist (which also accepts
-# these synonyms + <div> because pasted content comes from other apps).
-TAG_ALIASES = {
-    "strong": "b", "em": "i", "strike": "s", "del": "s", "div": "p",
-}
 
 _TABULAR = ("table", "thead", "tbody", "tfoot", "tr", "td", "th",
             "caption", "colgroup", "col")
 _IMAGE = ("img", "picture", "figure", "svg")
 _INLINE_STYLING = ("span", "font", "mark", "small", "sub", "sup")
 
-# Concrete substitution for the common offenders, written for a machine to act on.
+# Concrete substitution for the common GENUINELY-unsupported offenders, written for
+# a machine to act on. (Synonyms like <strong>/<em>/<div> are accepted above, so
+# they never reach here.)
 SUGGESTIONS = {
-    **{syn: f"use <{canon}> instead" for syn, canon in TAG_ALIASES.items()},
-    "div": "use <p> for a paragraph, or <br> for a line break",
     **{t: "represent tabular data as a <ul> with one <li> per row, using a "
           "separator such as ' · ' between fields" for t in _TABULAR},
     **{t: "images aren't supported — describe it in text, or link to it "
