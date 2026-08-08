@@ -8,9 +8,21 @@ import threading
 import time
 from datetime import datetime, timezone
 
-# Defaults to the container's /data volume; override with JOURNERY_DB to run
-# natively (e.g. JOURNERY_DB=~/journery-data/journery.db, no Docker needed).
-DB_PATH = os.path.expanduser(os.environ.get("JOURNERY_DB", "/data/clippery.db"))
+# Where the SQLite file lives. An explicit JOURNERY_DB always wins (used for native
+# runs, e.g. JOURNERY_DB=~/journery-data/journery.db, no Docker needed). Otherwise it
+# lives in the /data volume: existing installs keep the legacy "clippery.db" name (the
+# app was formerly called Clippery), while brand-new installs get "journery.db" so new
+# self-hosters never inherit the old name.
+def _resolve_db_path():
+    env = os.environ.get("JOURNERY_DB")
+    if env:
+        return os.path.expanduser(env)
+    if os.path.exists("/data/clippery.db"):
+        return "/data/clippery.db"
+    return "/data/journery.db"
+
+
+DB_PATH = _resolve_db_path()
 
 
 def get_conn():
