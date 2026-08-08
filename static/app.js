@@ -430,7 +430,7 @@ const SETTINGS_SECTION_LABELS = {
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
   { version: "1.31", date: "Aug 4, 2026", changes: [
-    "Connect Claude to your journal (MCP) — a new opt-in Connections setting lets Claude read, search, create, tag, and organize your notes from Claude Code or the Claude API. Off by default; access needs a token you generate and can revoke any time, and Claude can never permanently delete or overwrite a note.",
+    "Connect AI to your journal (MCP) — a new opt-in Connections setting lets an AI assistant read, search, create, tag, and organize your notes. Works with any MCP client (Claude Code, the Claude API, and others). Give each connection its own named token, see which one is active and when it was last used, and revoke any of them any time. Off by default; an AI can never permanently delete a note.",
     "Readable in every theme — all 48 themes now meet WCAG AA text contrast, so hint text, counts, and muted labels are legible even in the darker themes that were hard to read before.",
     "Keyboard shortcuts for text styles — on Mac ⌥⌘1, 2, 3 for headings, +4 for a quote, +0 for paragraph (Ctrl+Shift on Windows/Linux).",
     "Code blocks got a slabbier monospace font and a copy button — hover a block to copy its contents in one click.",
@@ -573,22 +573,51 @@ function openSettingsSection(section) {
   }
 }
 
-// ── Connections (Claude / MCP access) ──────────────────────────────────────────
+// ── Connections (AI access via MCP) ─────────────────────────────────────────────
+// Works with any MCP client. Multiple named tokens — one per AI connection — so
+// you can see which clients are connected, when each was last active, and revoke
+// them individually.
 const MCP_URL = location.origin + "/mcp";
+const MCP_ACTIVE_MS = 10 * 60 * 1000;   // "Active" = used within the last 10 min
 
 function mcpCliCommand(token) {
   return `claude mcp add --transport http journery ${MCP_URL} --header "Authorization: Bearer ${token || "<YOUR_TOKEN>"}"`;
 }
 
-// Three token states: none (offer Generate), active (hash stored, offer
-// Regenerate/Revoke), or a freshly-revealed value shown once. A reveal is never
-// persisted — reopening the section resets to none/active.
-function mcpSetTokenState(hasToken, revealValue) {
-  $("mcp-token-none").classList.toggle("hidden", hasToken || !!revealValue);
-  $("mcp-token-active").classList.toggle("hidden", !hasToken || !!revealValue);
-  $("mcp-token-reveal").classList.toggle("hidden", !revealValue);
-  $("mcp-token-value").value = revealValue || "";
-  $("mcp-cli").value = mcpCliCommand(revealValue);
+// One row per connection: name, when it was added, its live status (Active /
+// last-active + observed client / never used), and a Revoke link.
+function mcpConnectionRow(t) {
+  let status;
+  if (!t.last_used_at) {
+    status = `<span class="mcp-conn-status">Never used</span>`;
+  } else {
+    const active = (Date.now() - new Date(t.last_used_at)) < MCP_ACTIVE_MS;
+    const who = t.last_client ? esc(t.last_client) : "Unknown client";
+    status = active
+      ? `<span class="mcp-conn-status active"><span class="mcp-conn-dot"></span>Active now · ${who}</span>`
+      : `<span class="mcp-conn-status">${who} · last active ${esc(timeAgo(t.last_used_at))}</span>`;
+  }
+  return `<div class="mcp-conn-row" data-id="${esc(t.id)}">
+    <div class="mcp-conn-main">
+      <div class="mcp-conn-name">${esc(t.name)}</div>
+      <div class="mcp-conn-meta">Added ${esc(timeAgo(t.created_at))} · ${status}</div>
+    </div>
+    <button class="mcp-revoke-link" data-revoke="${esc(t.id)}">Revoke</button>
+  </div>`;
+}
+
+function renderMcpConnections(tokens) {
+  const host = $("mcp-connections");
+  if (!tokens || !tokens.length) {
+    host.innerHTML = `<p class="mcp-conn-empty">No connections yet. Add one below to connect an AI client.</p>`;
+    return;
+  }
+  host.innerHTML = tokens.map(mcpConnectionRow).join("");
+}
+
+function mcpHideReveal() {
+  $("mcp-token-reveal").classList.add("hidden");
+  $("mcp-token-value").value = "";
 }
 
 async function renderMcpSettings() {
@@ -596,10 +625,12 @@ async function renderMcpSettings() {
   $("mcp-url").value = MCP_URL;
   let cfg;
   try { cfg = await api("GET", "/api/mcp/config"); }
-  catch { cfg = { enabled: false, has_token: false }; }
+  catch { cfg = { enabled: false, tokens: [] }; }
   $("mcp-enabled-toggle").classList.toggle("on", cfg.enabled);
   $("mcp-details").classList.toggle("hidden", !cfg.enabled);
-  mcpSetTokenState(cfg.has_token, null);
+  renderMcpConnections(cfg.tokens);
+  $("mcp-token-name").value = "";
+  mcpHideReveal();   // a revealed token is never persisted across re-opens
 }
 
 function mcpCopy(inputId, btn) {
@@ -611,38 +642,40 @@ function mcpCopy(inputId, btn) {
   setTimeout(() => { btn.textContent = old; }, 1200);
 }
 
+async function mcpAddConnection() {
+  const name = $("mcp-token-name").value.trim() || "Connection";
+  const { token, config } = await api("POST", "/api/mcp/token", { name });
+  renderMcpConnections(config.tokens);
+  $("mcp-token-name").value = "";
+  // Reveal the plaintext once, with a ready-to-paste example command.
+  $("mcp-token-value").value = token;
+  $("mcp-cli").value = mcpCliCommand(token);
+  $("mcp-token-reveal").classList.remove("hidden");
+  showToast("Connection added");
+}
+
 $("mcp-enabled-toggle")?.addEventListener("click", async () => {
   const turningOn = !$("mcp-enabled-toggle").classList.contains("on");
   const cfg = await api("PUT", "/api/mcp/enabled", { value: turningOn });
   $("mcp-enabled-toggle").classList.toggle("on", cfg.enabled);
   $("mcp-details").classList.toggle("hidden", !cfg.enabled);
-  // First time enabling with no token yet: mint one and reveal it, so there's
-  // something to connect with immediately.
-  if (cfg.enabled && !cfg.has_token) {
-    const { token } = await api("POST", "/api/mcp/token");
-    mcpSetTokenState(true, token);
-  } else {
-    mcpSetTokenState(cfg.has_token, null);
-  }
+  renderMcpConnections(cfg.tokens);
+  mcpHideReveal();
 });
 
-$("mcp-generate-btn")?.addEventListener("click", async () => {
-  const { token } = await api("POST", "/api/mcp/token");
-  mcpSetTokenState(true, token);
+$("mcp-add-btn")?.addEventListener("click", mcpAddConnection);
+$("mcp-token-name")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); mcpAddConnection(); }
 });
 
-$("mcp-regenerate-btn")?.addEventListener("click", async () => {
-  if (!confirm("Regenerate the access token? The current token stops working immediately, and any connected client will need the new one.")) return;
-  const { token } = await api("POST", "/api/mcp/token");
-  mcpSetTokenState(true, token);
-  showToast("New token generated");
-});
-
-$("mcp-revoke-btn")?.addEventListener("click", async () => {
-  if (!confirm("Revoke Claude's access? Any connected client stops working until you generate a new token.")) return;
-  await api("DELETE", "/api/mcp/token");
-  mcpSetTokenState(false, null);
-  showToast("Token revoked");
+// Revoke a single connection (delegated — rows are re-rendered).
+$("mcp-connections")?.addEventListener("click", async (e) => {
+  const id = e.target.closest("[data-revoke]")?.dataset.revoke;
+  if (!id) return;
+  if (!confirm("Revoke this connection? Its token stops working immediately and the AI client using it loses access.")) return;
+  const cfg = await api("DELETE", `/api/mcp/token/${id}`);
+  renderMcpConnections(cfg.tokens);
+  showToast("Connection revoked");
 });
 
 $("mcp-url-copy")?.addEventListener("click", (e) => mcpCopy("mcp-url", e.currentTarget));

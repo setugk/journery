@@ -33,7 +33,7 @@ DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 # traffic. Never set this on prod/beta (self-hosted instances get no
 # analytics of any kind — see README's privacy promise). Empty = no beacon.
 CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
-APP_VERSION     = "1.31.15"
+APP_VERSION     = "1.31.16"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -488,13 +488,17 @@ def sync():
 
 
 # ── MCP access config (owner-only, behind the app's normal auth) ────────────────
-# These manage the toggle + bearer token from Settings. The actual /mcp endpoint
-# (below) is bearer-authed instead, so Claude clients can reach it.
+# These manage the toggle + named connection tokens from Settings. The actual
+# /mcp endpoint (below) is bearer-authed instead, so AI clients can reach it.
+
+def _mcp_config():
+    return {"enabled": db.get_mcp_enabled(), "tokens": db.list_mcp_tokens()}
+
 
 @app.route("/api/mcp/config", methods=["GET"])
 @requires_auth
 def mcp_config():
-    return jsonify({"enabled": db.get_mcp_enabled(), "has_token": db.has_mcp_token()})
+    return jsonify(_mcp_config())
 
 
 @app.route("/api/mcp/enabled", methods=["PUT"])
@@ -502,22 +506,25 @@ def mcp_config():
 def mcp_set_enabled():
     data = request.get_json(silent=True) or {}
     db.set_mcp_enabled(bool(data.get("value")))
-    return jsonify({"enabled": db.get_mcp_enabled(), "has_token": db.has_mcp_token()})
+    return jsonify(_mcp_config())
 
 
 @app.route("/api/mcp/token", methods=["POST"])
 @requires_auth
 def mcp_generate_token():
-    # Plaintext returned ONCE — the client shows it to the user and can never
-    # recover it after (only its hash is stored).
-    return jsonify({"token": db.generate_mcp_token()})
+    # Mint a named connection. The plaintext token is returned ONCE — the client
+    # shows it to the user and can never recover it after (only its hash is stored).
+    data = request.get_json(silent=True) or {}
+    created = db.create_mcp_token(data.get("name"))
+    return jsonify({"token": created["token"], "id": created["id"],
+                    "config": _mcp_config()})
 
 
-@app.route("/api/mcp/token", methods=["DELETE"])
+@app.route("/api/mcp/token/<token_id>", methods=["DELETE"])
 @requires_auth
-def mcp_revoke_token():
-    db.revoke_mcp_token()
-    return jsonify({"has_token": False})
+def mcp_revoke_token(token_id):
+    db.revoke_mcp_token(token_id)
+    return jsonify(_mcp_config())
 
 
 # ── Public share links ─────────────────────────────────────────────────────────
@@ -735,11 +742,25 @@ class _MCPToolError(Exception):
     (not a JSON-RPC protocol error, which is for malformed requests)."""
 
 
-def _mcp_bearer_ok():
+def _mcp_token_id():
+    """The id of the token in the request's Bearer header, or None."""
     hdr = request.headers.get("Authorization", "")
     if not hdr.startswith("Bearer "):
-        return False
+        return None
     return db.verify_mcp_token(hdr[7:].strip())
+
+
+def _mcp_client_name(payload):
+    """The client name reported at MCP `initialize` (e.g. "Claude Code"), if this
+    request carries one — so we can show which AI a connection belongs to."""
+    msgs = payload if isinstance(payload, list) else [payload]
+    for m in msgs:
+        if isinstance(m, dict) and m.get("method") == "initialize":
+            info = (m.get("params") or {}).get("clientInfo") or {}
+            name = (info.get("name") or "").strip()
+            if name:
+                return name[:80]
+    return None
 
 
 def _text_snippet(html, n=200):
@@ -993,7 +1014,8 @@ def _mcp_handle_message(msg):
 def mcp_endpoint():
     # Bearer-authed (NOT @requires_auth) so AI clients reach it; Cloudflare Access
     # must BYPASS /mcp. Off unless enabled in Settings AND the token matches.
-    if not db.get_mcp_enabled() or not _mcp_bearer_ok():
+    token_id = _mcp_token_id() if db.get_mcp_enabled() else None
+    if not token_id:
         return Response(
             json.dumps(_mcp_error(None, -32001, "Unauthorized")),
             status=401, mimetype="application/json",
@@ -1003,6 +1025,8 @@ def mcp_endpoint():
     if payload is None:
         return Response(json.dumps(_mcp_error(None, -32700, "Parse error")),
                         status=400, mimetype="application/json")
+    # Record activity so Settings can show which client is using this connection.
+    db.touch_mcp_token(token_id, _mcp_client_name(payload))
     if isinstance(payload, list):  # JSON-RPC batch (defensive; removed in 2025-06-18)
         out = [r for r in (_mcp_handle_message(m) for m in payload) if r is not None]
         return (Response("", status=202) if not out

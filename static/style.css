@@ -1258,6 +1258,27 @@ input.share-field-control { color: var(--text-2); }
   font-size: var(--fs-13); font-weight: 600; color: var(--sell, #DC2626);
 }
 .mcp-reveal-warn { color: var(--sell, #DC2626); margin-top: 8px; }
+.mcp-cli-label, #mcp-cli-label { margin-top: 14px; }
+/* Connection rows — one per named MCP token. */
+.mcp-conn-empty { font-size: var(--fs-13); color: var(--text-muted); margin: 0; }
+.mcp-conn-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+}
+.mcp-conn-row:first-child { border-top: 1px solid var(--border); }
+.mcp-conn-main { flex: 1; min-width: 0; }
+.mcp-conn-name {
+  font-size: var(--fs-14); font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mcp-conn-meta { font-size: var(--fs-12); color: var(--text-muted); margin-top: 2px; }
+.mcp-conn-status { color: var(--text-muted); }
+.mcp-conn-status.active { color: var(--buy, #16A34A); font-weight: 600; }
+.mcp-conn-dot {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--buy, #16A34A); margin-right: 5px; vertical-align: middle;
+}
+.mcp-conn-row .mcp-revoke-link { flex: none; padding: 4px 0; }
 .share-inline-link {
   background: none; border: none; padding: 0; font-family: inherit;
   font-size: var(--fs-12); font-weight: 600; color: var(--danger); cursor: pointer;

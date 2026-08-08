@@ -22,7 +22,7 @@ def get_conn():
     return conn
 
 
-_SCHEMA_VERSION = 6
+_SCHEMA_VERSION = 7
 
 
 def init_db():
@@ -117,6 +117,33 @@ def init_db():
             conn.execute("ALTER TABLE shares ADD COLUMN password_hash TEXT")
             conn.execute("ALTER TABLE tag_shares ADD COLUMN password_hash TEXT")
             conn.execute("UPDATE schema_version SET version = 6")
+
+        if current < 7:
+            # Multiple named MCP tokens (was a single `mcp_token_hash` setting row).
+            # Each AI connection gets its own named token, so you can see which
+            # clients are connected, when each was last active, and revoke them
+            # one at a time. last_client is the client name reported at MCP
+            # `initialize` (e.g. "Claude Code"); last_used_at updates every call.
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS mcp_tokens (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    token_hash TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    last_used_at TEXT,
+                    last_client TEXT
+                )
+            """)
+            # Carry the existing single token over so it keeps working.
+            old = conn.execute(
+                "SELECT value FROM settings WHERE key = 'mcp_token_hash'").fetchone()
+            if old and old["value"]:
+                conn.execute(
+                    "INSERT INTO mcp_tokens (id, name, token_hash, created_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (uuid.uuid4().hex, "Existing connection", old["value"], now()))
+            conn.execute("DELETE FROM settings WHERE key = 'mcp_token_hash'")
+            conn.execute("UPDATE schema_version SET version = 7")
 
     conn.close()
     purge_old_trash()
@@ -598,12 +625,13 @@ def set_setting(key, value):
     conn.close()
 
 
-# ── MCP access (Claude / AI connector) ──────────────────────────────────────────
-# Opt-in, off by default. Two settings rows: `mcp_enabled` gates the /mcp
-# endpoint, `mcp_token_hash` is the sha256 of the single bearer token (the token
-# itself is shown once at generation and never stored). Revoking clears the hash.
-# The token is high-entropy random, so a plain sha256 (constant-time compared) is
-# the right primitive here — pbkdf2 is for low-entropy passwords, not this.
+# ── MCP access (any AI connector) ───────────────────────────────────────────────
+# Opt-in, off by default. `mcp_enabled` (a settings row) gates the /mcp endpoint.
+# Access tokens live in the `mcp_tokens` table — one named token per connection,
+# so multiple AI clients can connect and each can be seen/revoked individually.
+# Tokens are high-entropy random, so a plain sha256 (constant-time compared) is
+# the right primitive here — pbkdf2 is for low-entropy passwords, not this. Only
+# the hash is stored; the plaintext is shown once at creation and never recovered.
 
 def get_mcp_enabled():
     return get_setting("mcp_enabled") == "1"
@@ -617,27 +645,74 @@ def _hash_mcp_token(token):
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def generate_mcp_token():
-    """Mint a new bearer token, store only its hash, and return the plaintext
-    ONCE (the caller shows it to the user; it can never be recovered after)."""
+def create_mcp_token(name):
+    """Mint a new named bearer token, store only its hash, and return
+    {id, name, token} with the plaintext ONCE (never recoverable after)."""
+    name = (name or "").strip() or "Connection"
     token = secrets.token_urlsafe(32)
-    set_setting("mcp_token_hash", _hash_mcp_token(token))
-    return token
+    tid = uuid.uuid4().hex
+    conn = get_conn()
+    with conn:
+        conn.execute(
+            "INSERT INTO mcp_tokens (id, name, token_hash, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (tid, name, _hash_mcp_token(token), now()))
+    conn.close()
+    return {"id": tid, "name": name, "token": token}
+
+
+def list_mcp_tokens():
+    """All connections, newest first — metadata only, never the hash/plaintext."""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT id, name, created_at, last_used_at, last_client "
+        "FROM mcp_tokens ORDER BY created_at DESC").fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 def has_mcp_token():
-    return bool(get_setting("mcp_token_hash"))
+    conn = get_conn()
+    n = conn.execute("SELECT COUNT(*) AS c FROM mcp_tokens").fetchone()["c"]
+    conn.close()
+    return n > 0
 
 
-def revoke_mcp_token():
-    set_setting("mcp_token_hash", "")
+def revoke_mcp_token(token_id):
+    conn = get_conn()
+    with conn:
+        conn.execute("DELETE FROM mcp_tokens WHERE id = ?", (token_id,))
+    conn.close()
 
 
 def verify_mcp_token(token):
-    stored = get_setting("mcp_token_hash") or ""
-    if not stored or not token:
-        return False
-    return hmac.compare_digest(_hash_mcp_token(token), stored)
+    """Return the matching token's id, or None. Direct hash lookup — the stored
+    value is a sha256 of a high-entropy secret, so an index lookup doesn't leak
+    it (an attacker still has to produce a hash that equals a stored one)."""
+    if not token:
+        return None
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id FROM mcp_tokens WHERE token_hash = ?",
+        (_hash_mcp_token(token),)).fetchone()
+    conn.close()
+    return row["id"] if row else None
+
+
+def touch_mcp_token(token_id, client=None):
+    """Record activity for a token: bump last_used_at, and set last_client when a
+    client name was seen (only the MCP `initialize` call carries one)."""
+    conn = get_conn()
+    with conn:
+        if client:
+            conn.execute(
+                "UPDATE mcp_tokens SET last_used_at = ?, last_client = ? WHERE id = ?",
+                (now(), client, token_id))
+        else:
+            conn.execute(
+                "UPDATE mcp_tokens SET last_used_at = ? WHERE id = ?",
+                (now(), token_id))
+    conn.close()
 
 
 # ── Sync ──────────────────────────────────────────────────────────────────────

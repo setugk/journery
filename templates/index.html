@@ -609,16 +609,18 @@
           </div>
         </div>
 
-        <!-- Connections panel — Claude / MCP access. Opt-in, off by default.
-             Hidden on the demo instance (no-demo) since it has no real backend. -->
+        <!-- Connections panel — AI access via MCP. Opt-in, off by default. Works
+             with any Model Context Protocol client (Claude Code, the Claude API
+             connector, or any other MCP-capable AI). Hidden on the demo instance
+             (no-demo) since it has no real backend. -->
         <div class="settings-panel hidden no-demo" id="settings-panel-connections">
           <div class="settings-group">
             <div class="settings-group-title settings-page-heading">Connections</div>
             <div class="settings-group-rows">
               <div class="settings-row">
                 <div>
-                  <div class="settings-row-label">Claude access (MCP)</div>
-                  <div class="settings-row-desc">Let Claude read and edit your notes through the Model Context Protocol. Off by default.</div>
+                  <div class="settings-row-label">AI access (MCP)</div>
+                  <div class="settings-row-desc">Let an AI assistant read and edit your notes through the Model Context Protocol — works with any MCP client. Off by default.</div>
                 </div>
                 <button class="toggle-switch" id="mcp-enabled-toggle"></button>
               </div>
@@ -626,8 +628,6 @@
           </div>
 
           <div class="settings-group hidden" id="mcp-details">
-            <div class="settings-group-title">How to connect</div>
-
             <div class="mcp-field">
               <label class="share-field-label">MCP server URL</label>
               <div class="mcp-copy-row">
@@ -636,19 +636,18 @@
               </div>
             </div>
 
+            <!-- Connections: one named token per AI client. -->
+            <div class="settings-group-title">Your connections</div>
             <div class="mcp-field">
-              <label class="share-field-label">Access token</label>
-              <!-- No token yet -->
-              <div id="mcp-token-none">
-                <button class="btn-primary" id="mcp-generate-btn">Generate token</button>
-              </div>
-              <!-- A token exists (only its hash is stored — the value is gone) -->
-              <div id="mcp-token-active" class="hidden">
-                <div class="mcp-token-status">🔑 A token is active</div>
-                <div class="mcp-token-actions">
-                  <button class="settings-export-link" id="mcp-regenerate-btn">Regenerate</button>
-                  <button class="mcp-revoke-link" id="mcp-revoke-btn">Revoke</button>
-                </div>
+              <div id="mcp-connections"></div>
+            </div>
+
+            <!-- Add a new connection (names its token). -->
+            <div class="mcp-field">
+              <label class="share-field-label" for="mcp-token-name">Add a connection</label>
+              <div class="mcp-copy-row">
+                <input type="text" class="share-field-control" id="mcp-token-name" maxlength="60" placeholder="e.g. Claude Code on my laptop">
+                <button class="btn-primary" id="mcp-add-btn">Generate token</button>
               </div>
               <!-- Freshly generated — revealed once -->
               <div id="mcp-token-reveal" class="hidden">
@@ -657,16 +656,13 @@
                   <button class="settings-export-link" id="mcp-token-copy">Copy</button>
                 </div>
                 <p class="feedback-hint mcp-reveal-warn">Copy this now — it won't be shown again. Anyone with this token can read and edit your notes.</p>
+                <label class="share-field-label" id="mcp-cli-label">Add it to your AI client (example: Claude Code)</label>
+                <div class="mcp-copy-row">
+                  <input type="text" class="share-field-control" id="mcp-cli" readonly>
+                  <button class="settings-export-link" id="mcp-cli-copy">Copy</button>
+                </div>
               </div>
-            </div>
-
-            <div class="mcp-field">
-              <label class="share-field-label">Add it in Claude Code</label>
-              <div class="mcp-copy-row">
-                <input type="text" class="share-field-control" id="mcp-cli" readonly>
-                <button class="settings-export-link" id="mcp-cli-copy">Copy</button>
-              </div>
-              <p class="feedback-hint">Claude can list, search, create, tag, and organize notes, and move them to Trash. It can't permanently delete a note or overwrite existing content. Revoke the token any time to cut off access.</p>
+              <p class="feedback-hint">A connected AI can list, search, create, tag, and organize notes, and move them to Trash. It can't permanently delete a note. Revoke any connection any time to cut off its access. Other MCP clients connect with the same server URL and token.</p>
             </div>
           </div>
         </div>
