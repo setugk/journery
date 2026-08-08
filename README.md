@@ -14,7 +14,7 @@ A self-hosted private journaling app. Nestable folders, tagged notes, markdown-s
 - **Drag and drop** (desktop) — a note into a folder or onto a tag, or a folder into another to nest it; drag to the Folders header to un-nest
 - **Right-click** a note, folder, or tag for quick actions (rename, move, delete, pin, share)
 - **Public share links** — turn any note, or a whole tag, into a read-only link anyone can open without signing in, with optional auto-expiry and one-tap revoke
-- **Connect an AI assistant (MCP)** — opt-in, off by default: let Claude read, search, create, tag, and organise your notes through the Model Context Protocol, gated by a token you generate and can revoke any time
+- **Connect an AI assistant (MCP)** — opt-in, off by default: let any AI assistant read, search, create, tag, and organise your notes through the Model Context Protocol. Works with any MCP client; create a named token per connection, see which one is active, and revoke any of them any time
 - Full-text search, plus a Timeline to browse by year
 - Trash with 30-day retention + restore
 - 48 built-in themes, light and dark — and your theme + display settings follow you across devices
@@ -46,23 +46,9 @@ You own your data — it lives on hardware you control, and the Journery author 
 
 > ⚠️ **Journery has no login by default.** That's fine on localhost or a private home network — but it means *anyone who can reach the URL can read your journal.* **Before you make Journery reachable from the internet, put authentication in front of it:** set `JOURNERY_USER` / `JOURNERY_PASS` (below), or gate it behind Cloudflare Access or a reverse-proxy login. Don't raw-port-forward it. It's your private journal — treat the front door accordingly.
 
-### Easiest — host it on PikaPods (no server of your own)
+### Easiest — let an AI assistant set it up
 
-No NAS, no spare machine, no command line? [**PikaPods**](https://www.pikapods.com) runs Journery for you for about **$1–2/month**. Your notes live on *your* pod — nobody else can see them, and no one hosts your data but you.
-
-1. Create a [PikaPods](https://www.pikapods.com) account.
-2. Add a pod running the image **`ghcr.io/setugk/journery`**.
-3. Use these settings:
-   - **Container port:** `5000`
-   - **Volume:** mount storage at **`/data`** — every note lives here
-   - *(optional)* set **`JOURNERY_USER`** + **`JOURNERY_PASS`** to require a login
-4. Open the URL PikaPods gives you — that's your private Journery.
-
-Export any time from **Settings → Data**. Want to move to your own hardware later? Same image, same data file — just follow the Docker steps below.
-
-### Prefer to let an AI assistant set it up?
-
-Not comfortable in a terminal? Paste this to an AI coding assistant (Claude, etc.) on the computer you want to host it on:
+Not comfortable in a terminal? Paste this to an AI coding assistant on the computer you want to host it on:
 
 > Set up **Journery**, an open-source self-hosted journaling app, on this computer. My notes must stay on this machine — do not use any cloud service or send data anywhere.
 > 1. Verify Docker is installed (`docker --version`); if not, install it (or give me steps for my OS).
@@ -105,7 +91,7 @@ docker run -d --name journery -p 5050:5000 -v ~/journery-data:/data ghcr.io/setu
 docker compose pull && docker compose up -d
 ```
 
-**PikaPods:** click **Update** on your pod. **Hands-off:** point [Watchtower](https://containrrr.dev/watchtower/) at the container and it pulls new releases for you.
+**Hands-off:** point [Watchtower](https://containrrr.dev/watchtower/) at the container and it pulls new releases for you.
 
 After updating, **Settings → What's New** shows what changed. To stay on a fixed version instead of the newest, pin a release tag (e.g. `:v1.31.5`) rather than `:latest`.
 
@@ -176,13 +162,13 @@ Using a different gate (Authelia, Authentik, NGINX/Traefik auth, etc.)? Same ide
 
 ### Connect an AI assistant (MCP)
 
-Journery can expose a **[Model Context Protocol](https://modelcontextprotocol.io/) server** so an AI assistant — Claude Code today, and the Claude API's connector — can work with your notes for you (e.g. "add my Tokyo itinerary to my Japan trip note"). It's **opt-in and off by default**, and lives entirely inside the app you already run — no extra container or service.
+Journery can expose a **[Model Context Protocol](https://modelcontextprotocol.io/) server** so an AI assistant can work with your notes for you (e.g. "add my Tokyo itinerary to my Japan trip note"). It works with **any MCP client** — Claude Code and the Claude API connector today, and any other MCP-capable assistant. It's **opt-in and off by default**, and lives entirely inside the app you already run — no extra container or service.
 
-Turn it on in **Settings → Connections**: flip **Claude access (MCP)** on, and Journery generates a **bearer token** (shown once — copy it). Your MCP URL is just your Journery address + **`/mcp`**. The Settings screen gives you the exact `claude mcp add …` command to paste into Claude Code.
+Turn it on in **Settings → Connections**: flip **AI access (MCP)** on, then add a **named connection** — one per AI client — and Journery gives you a **token** for it (shown once — copy it). Your MCP URL is just your Journery address + **`/mcp`**, the same for every client. The Settings screen shows an example `claude mcp add …` command (for Claude Code); any other MCP client connects with that same URL + token. Each connection shows which client is active and when it was last used, and you can revoke them individually.
 
-**What the assistant can and can't do.** A deliberately safe subset: list, search, read, create, append to, and — to fix its own earlier output — replace notes; add tags; move notes between folders; create folders; and move a note to **Trash** (recoverable for 30 days). It **cannot permanently delete** a note or empty your Trash. Everything runs through the token; **revoke it any time** (Settings → Connections → Revoke) to cut off access instantly, and the endpoint stays dead whenever the toggle is off.
+**What the assistant can and can't do.** A deliberately safe subset: list, search, read, create, append to, and — to fix its own earlier output — replace notes; add tags; move notes between folders; create folders; and move a note to **Trash** (recoverable for 30 days). It **cannot permanently delete** a note or empty your Trash. Everything runs through the token; **revoke any connection any time** (Settings → Connections → Revoke) to cut off that client instantly, and the endpoint stays dead whenever the toggle is off.
 
-**Privacy.** This is the second thing in Journery that can talk to an outside program, and only when *you* turn it on and hand *your* AI client *your* token — Journery still never phones home on its own. The assistant you connect (e.g. Claude) will see the notes it reads; that's the point of connecting it. Off by default; nothing changes unless you enable it.
+**Privacy.** This is the second thing in Journery that can talk to an outside program, and only when *you* turn it on and hand *your* AI client *your* token — Journery still never phones home on its own. The assistant you connect will see the notes it reads; that's the point of connecting it. Off by default; nothing changes unless you enable it.
 
 **One Cloudflare step if you use an auth gate.** Same catch as public sharing: an AI client can't complete an interactive Cloudflare Access / SSO login, so the `/mcp` path has to be **exempted** from your auth gate (the bearer token is its own gate). In **Cloudflare Access**, add a path-scoped **Bypass** policy for **`yourdomain.com/mcp`** (Include: Everyone) — exactly like the `/shared/*` bypass above, just a different path. Running open or with only `JOURNERY_USER`/`JOURNERY_PASS`? Nothing to do.
 
