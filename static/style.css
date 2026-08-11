@@ -766,6 +766,13 @@ body {
    text so they never overlap. */
 .editor-toolbar.title-pinned .autosave-indicator { opacity: 0; }
 
+/* Save button doubles as an autosave indicator: the checkmark swaps to a
+   spinner while a save is in flight, then back to the check when it lands. */
+.editor-save-btn .icon-spinner { display: none; }
+.editor-save-btn.saving .icon-check { display: none; }
+.editor-save-btn.saving .icon-spinner { display: inline-flex; animation: save-spin 0.7s linear infinite; }
+@keyframes save-spin { to { transform: rotate(360deg); } }
+
 .overflow-wrapper { position: relative; }
 .overflow-menu {
   position: absolute; top: calc(100% + 6px); right: 0;

@@ -54,6 +54,7 @@ const noteBody       = $("note-body");
 const tagsChips      = $("tags-chips");
 const tagInput       = $("tag-input");
 const autosaveEl     = $("autosave-indicator");
+const saveBtn        = $("editor-save-btn");
 const editorBody     = $("editor-body");
 const editorEmpty    = $("editor-empty-state");
 const overflowMenu   = $("overflow-menu");
@@ -434,6 +435,7 @@ const CHANGELOG = [
     "Readable in every theme — all 48 themes now meet WCAG AA text contrast, so hint text, counts, and muted labels are legible even in the darker themes that were hard to read before.",
     "Keyboard shortcuts for text styles — on Mac ⌥⌘1, 2, 3 for headings, +4 for a quote, +0 for paragraph (Ctrl+Shift on Windows/Linux).",
     "Code blocks got a slabbier monospace font and a copy button — hover a block to copy its contents in one click.",
+    "The save button now shows a spinner while your note is auto-saving and settles back to a checkmark once it's saved — so you can see it's handled without ever pressing it.",
     "Bug fixes & improvements",
   ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [
@@ -998,10 +1000,15 @@ function positionCodeCopyBtn(pre, btn) {
   // Hide when the block is scrolled out of its own scroll container's viewport.
   const clip = (pre.closest("#editor-body, .note-view-article, #note-view") || document.documentElement)
                  .getBoundingClientRect();
-  const visible = r.bottom > clip.top + 6 && r.top < clip.bottom - 6;
+  // The button anchors to the block's top-right and rides with it. Show it only
+  // while that anchor sits inside the scroll viewport AND within the block — so it
+  // scrolls up and out WITH the block, never floating over the header or lingering
+  // in the gap below the block once its top has scrolled away.
+  const top = r.top + 8;
+  const visible = top >= clip.top && top < clip.bottom - 6 && top < r.bottom - 6;
   btn.classList.toggle("offscreen", !visible);
   if (!visible) return;
-  btn.style.top = (r.top + 8) + "px";
+  btn.style.top = top + "px";
   btn.style.right = Math.max(8, window.innerWidth - r.right + 8) + "px";
 }
 function syncCodeCopy() {
@@ -2641,6 +2648,7 @@ async function saveNoteNow() {
 
   state.saving = true;
   setAutosave("Saving…");
+  saveBtn.classList.add("saving");
   try {
     let updated;
     if (savingNote.id === null) {
@@ -2673,6 +2681,7 @@ async function saveNoteNow() {
     if (state.note === savingNote) setAutosave("Save failed");
   }
   state.saving = false;
+  saveBtn.classList.remove("saving");
 }
 
 function autosizeTitle() {
