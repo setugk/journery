@@ -1185,12 +1185,15 @@ function renderPinnedTags() {
   pinned.forEach(name => {
     const tag = state.tags.find(t => t.name === name);
     if (!tag) return;
-    const isActive = state.context.type === "tag" && state.context.id === name;
+    // This is the Pinned copy; light it unless the user explicitly clicked the
+    // same tag in the Tags list below (tagSource === "all").
+    const isActive = state.context.type === "tag" && state.context.id === name
+      && state.context.tagSource !== "all";
     const btn = document.createElement("button");
     btn.className = "tag-nav-item" + (isActive ? " active" : "");
     btn.dataset.tag = name;   // drop target: dragging a note here adds this tag
     btn.innerHTML = `<button class="tag-pin-btn pinned tag-pin-left" title="Unpin">${PIN_SVG}</button><span class="tag-label"><span class="tag-hash">#</span>${esc(name)}</span><span class="tag-right"><span class="tag-count">${tag.count}</span></span>`;
-    btn.addEventListener("click", () => navigateToTag(name));
+    btn.addEventListener("click", () => navigateToTag(name, "pinned"));
     btn.querySelector(".tag-pin-btn").addEventListener("click", e => {
       e.stopPropagation();
       unpinTag(name);
@@ -1217,11 +1220,13 @@ function renderAllTags() {
   if (!state.allTagsExpanded || !state.tags.length) return;
   state.tags.forEach(tag => {
     const isPinned = state.pinnedTags.includes(tag.name);
-    // A pinned tag also appears in the Pinned section above; let that copy carry
-    // the active highlight so the same tag isn't lit twice. Fall back to lighting
-    // it here only when the Pinned section is collapsed (its copy isn't visible).
+    // A pinned tag also appears in the Pinned section above; don't light both.
+    // Light this Tags-list copy when the user actually clicked it (tagSource
+    // "all"), or when the Pinned copy isn't visible to carry the highlight
+    // (unpinned, or the Pinned section is collapsed).
     const litAbove = isPinned && state.pinnedTagsExpanded;
-    const isActive = state.context.type === "tag" && state.context.id === tag.name && !litAbove;
+    const isActive = state.context.type === "tag" && state.context.id === tag.name
+      && (!litAbove || state.context.tagSource === "all");
     const btn = document.createElement("button");
     btn.className = "tag-nav-item" + (isActive ? " active" : "");
     btn.dataset.tag = tag.name;   // drop target: dragging a note here adds this tag
@@ -1230,7 +1235,7 @@ function renderAllTags() {
       ? `<button class="tag-pin-btn pinned tag-pin-left" title="Unpin">${PIN_SVG}</button>`
       : `<button class="tag-pin-btn tag-pin-left" title="Pin">${PIN_OUTLINE_SVG}</button>`;
     btn.innerHTML = `${pinBtn}<span class="tag-label"><span class="tag-hash">#</span>${esc(tag.name)}</span><span class="tag-right"><span class="tag-count">${tag.count}</span></span>`;
-    btn.addEventListener("click", () => navigateToTag(tag.name));
+    btn.addEventListener("click", () => navigateToTag(tag.name, "all"));
     btn.querySelector(".tag-pin-btn").addEventListener("click", e => {
       e.stopPropagation();
       isPinned ? unpinTag(tag.name) : pinTag(tag.name);
@@ -1855,9 +1860,11 @@ $("folder-up-btn").addEventListener("click", () => {
   if (parent) navigateToFolder(parent);
 });
 
-function navigateToTag(tagName) {
+function navigateToTag(tagName, source = null) {
   state.navHistory = [];
-  state.context = { type: "tag", id: tagName, label: "#" + tagName };
+  // source ("pinned" | "all") records which sidebar copy was clicked so only
+  // that instance highlights when a tag appears in both sections.
+  state.context = { type: "tag", id: tagName, label: "#" + tagName, tagSource: source };
   paneTitle.textContent = "#" + tagName;
   setActiveNav(null);
   renderSidebar();
