@@ -33,7 +33,7 @@ DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 # traffic. Never set this on prod/beta (self-hosted instances get no
 # analytics of any kind — see README's privacy promise). Empty = no beacon.
 CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
-APP_VERSION     = "1.31.24"
+APP_VERSION     = "1.31.25"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
