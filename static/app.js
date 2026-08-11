@@ -1217,7 +1217,11 @@ function renderAllTags() {
   if (!state.allTagsExpanded || !state.tags.length) return;
   state.tags.forEach(tag => {
     const isPinned = state.pinnedTags.includes(tag.name);
-    const isActive = state.context.type === "tag" && state.context.id === tag.name;
+    // A pinned tag also appears in the Pinned section above; let that copy carry
+    // the active highlight so the same tag isn't lit twice. Fall back to lighting
+    // it here only when the Pinned section is collapsed (its copy isn't visible).
+    const litAbove = isPinned && state.pinnedTagsExpanded;
+    const isActive = state.context.type === "tag" && state.context.id === tag.name && !litAbove;
     const btn = document.createElement("button");
     btn.className = "tag-nav-item" + (isActive ? " active" : "");
     btn.dataset.tag = tag.name;   // drop target: dragging a note here adds this tag
