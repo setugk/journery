@@ -36,11 +36,11 @@
       // Fixed id (not a random uid()) so app.js can open this specific note by
       // id on load, instead of the blank "select a note" state.
       mk("Start here: what is Journery? 👋",
-         "Journery is a calm home for your notes and journal.<br><br>" +
-         "Write freely, then organise however you think:" +
-         "<ul><li><b>Tags</b>: label notes like #daily-journal, #ideas, #travel, #recipes or #work, and pull them up with a tap</li>" +
+         "Journery is a journaling app. The focus is the writing, so it stays out of the way: open it, start typing, and your entry saves itself as you go. No setup, no clutter between you and the page.<br><br>" +
+         "Write first, organise later if you want to:" +
+         "<ul><li><b>Tags</b>: label an entry like #daily-journal, #travel, or #ideas, and pull those up with a tap</li>" +
          "<li><b>Folders</b>: group bigger buckets, nested as deep as you want</li>" +
-         "<li><b>Search &amp; Timeline</b>: find anything by word, or browse by year</li></ul>" +
+         "<li><b>Search &amp; Timeline</b>: find any entry by word, or browse by year</li></ul>" +
          "It runs in any browser, syncs across your devices, and installs as an app on your phone.<br><br>" +
          "These <b>#getting-started</b> notes walk through the main features. Tap the tag below to see them all, in order.<br><br>" +
          "About this demo: everything you do is saved only in <b>your</b> browser. Nothing is sent anywhere or shared with anyone. Want a clean slate? Open <b>Settings → Data → Reset demo data</b>.",
@@ -71,6 +71,12 @@
          "<li><b>Timeline</b>: browse everything by year</li></ul>" +
          "You can also change the sort order from the notes-list header (newest, oldest, recently edited).",
          null, ["getting-started"], recent(20)),
+      mk("Sharing an entry or a tag",
+         "Want someone to read one entry without handing over your whole journal? Open a note's menu and choose <b>Share</b> to get a public link to just that note.<br><br>" +
+         "You can share a whole tag the same way, which publishes a read-only list of every entry that carries it. Tag a note to add it to the list, untag to remove it.<br><br>" +
+         "Every link is optional and reversible: set it to expire on a date, add a password, or stop sharing whenever you want.<br><br>" +
+         "(Sharing needs a server, so it's switched off in this browser-only demo. It's built in once you host your own Journery.)",
+         null, ["getting-started"], recent(23)),
       mk("Sync across your devices",
          "Journery keeps everything in one place, everywhere.<br><br>" +
          "Open it on your laptop, phone, and tablet: write on one and it turns up on the others within seconds, automatically. No manual sync, no export/import shuffle. It even updates live between browser tabs.<br><br>" +
@@ -97,13 +103,18 @@
          "<li>Tap Install / Add</li></ul>" +
          "Tip: the installed app keeps its own separate copy, so it may start fresh from the sample notes.",
          null, ["getting-started"], recent(40)),
+      mk("Connect an AI assistant",
+         "Journery can let an AI assistant work with your journal for you: read entries, search across them, add new ones, and tag or file them where they belong.<br><br>" +
+         "It uses MCP, an open standard, so it works with Claude and other MCP clients. Point your assistant at Journery and ask it to, say, drop today's trip notes into a new entry.<br><br>" +
+         "It's off until you turn it on, and every connection gets its own token you can revoke. An assistant can move an entry to the trash, but it can never delete anything for good.<br><br>" +
+         "(This lives in <b>Settings → Connections</b> on your own Journery, and is turned off in this demo.)",
+         null, ["getting-started"], recent(43)),
       mk("Host your own Journery",
          "Like it? Journery is free and open-source, so you can run your own copy and keep your notes on <b>your</b> hardware, never someone else's server.<br><br>" +
          "It's a single command with Docker, and:" +
          "<ul><li>Your data stays in a folder <b>you</b> choose: your computer, a NAS, anywhere</li>" +
          "<li>Add a password, or put it behind your own login</li>" +
-         "<li>Reach it from every device, all in sync</li>" +
-         "<li>Optionally connect an AI assistant to read and organise your notes for you</li></ul>" +
+         "<li>Reach it from every device, all in sync</li></ul>" +
          "Grab it and the step-by-step setup at <b>github.com/setugk/journery</b>.",
          null, ["getting-started"], recent(45)),
       mk("Morning pages",
