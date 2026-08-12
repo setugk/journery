@@ -436,7 +436,7 @@ const CHANGELOG = [
     "Keyboard shortcuts for text styles — on Mac ⌥⌘1, 2, 3 for headings, +4 for a quote, +0 for paragraph (Ctrl+Shift on Windows/Linux).",
     "Code blocks got a slabbier monospace font and a copy button — hover a block to copy its contents in one click.",
     "The save button now shows a spinner while your note is auto-saving and settles back to a checkmark once it's saved — so you can see it's handled without ever pressing it.",
-    "Fixed on phones: a single Return now reliably starts a new line or bullet (no more double-tapping), and a new checkbox always starts unchecked even right below a ticked one.",
+    "Fixed on phones: a single Return now reliably starts a new line or bullet (no more double-tapping), a new checkbox always starts unchecked even right below a ticked one, and the note menu's Delete (and its other actions) now work on the first tap.",
     "Bug fixes & improvements",
   ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [

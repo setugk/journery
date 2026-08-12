@@ -2070,6 +2070,15 @@ textarea.modal-input { resize: vertical; min-height: 88px; line-height: 1.5; }
   .notes-pane { transform: translateX(100%); z-index: 2; }
   .editor-pane { transform: translateX(100%); z-index: 1; }
 
+  /* The panes are transformed here (for the slide nav), so each is its own
+     stacking context at z-index 1–3. That traps every floating menu inside a
+     pane BELOW the full-screen backdrop (z-index 95), so on mobile the backdrop
+     paints over the open menu and swallows the tap — nothing happens when you
+     tap Delete/Share/etc. Drop the backdrop on mobile: the menus render crisp
+     and tappable, and outsideMenuGuard (document-level) still dismisses them on
+     an outside tap. Tradeoff: no dim overlay on mobile. */
+  .menu-backdrop { display: none; }
+
   .app[data-view="notes"] .sidebar    { transform: translateX(-100%); }
   .app[data-view="notes"] .notes-pane { transform: translateX(0); }
   .app[data-view="notes"] .editor-pane { transform: translateX(100%); }
