@@ -436,6 +436,7 @@ const CHANGELOG = [
     "Keyboard shortcuts for text styles — on Mac ⌥⌘1, 2, 3 for headings, +4 for a quote, +0 for paragraph (Ctrl+Shift on Windows/Linux).",
     "Code blocks got a slabbier monospace font and a copy button — hover a block to copy its contents in one click.",
     "The save button now shows a spinner while your note is auto-saving and settles back to a checkmark once it's saved — so you can see it's handled without ever pressing it.",
+    "Fixed on phones: a single Return now reliably starts a new line or bullet (no more double-tapping), and a new checkbox always starts unchecked even right below a ticked one.",
     "Bug fixes & improvements",
   ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [
@@ -3713,7 +3714,12 @@ function caretAtStartOfLi(li) {
   return test.toString() === '';
 }
 
+// A real Enter keydown just fired (physical/desktop keyboard). The beforeinput
+// fallback below reads this to stand down and let this handler own the press.
+let lastEnterKeydownAt = 0;
+let enterFallbackBusy = false;   // guards against the beforeinput our own execCommand fires
 noteBody.addEventListener("keydown", e => {
+  if (e.key === "Enter") lastEnterKeydownAt = performance.now();
   if (e.key === "Tab") {
     e.preventDefault();
     // In a list, Tab/Shift+Tab nest/un-nest the item (like every other editor).
@@ -3837,6 +3843,64 @@ noteBody.addEventListener("keydown", e => {
     e.preventDefault();
     saveNoteNow();
   }
+});
+
+// Enter/Return fallback for virtual keyboards (iOS/Android). While autocorrect is
+// pending, the on-screen keyboard fires keydown with keyCode 229 / key
+// "Unidentified" — never "Enter" — so the handler above is skipped entirely, and
+// the browser's raw action is sometimes a soft <br> instead of a new block (the
+// "press Return twice" bug) and a split checklist item keeps its checked state.
+// beforeinput's inputType IS reliable there, so use it as a fallback. It stands
+// down whenever a real Enter keydown just fired (desktop and hardware keyboards
+// stay on the keydown path above, untouched), so it only engages when keydown
+// didn't see the Enter — i.e. exactly the virtual-keyboard case.
+noteBody.addEventListener("beforeinput", e => {
+  if (e.inputType !== "insertParagraph" && e.inputType !== "insertLineBreak") return;
+  if (performance.now() - lastEnterKeydownAt < 100) return;  // a real Enter keydown owns this press
+  if (enterFallbackBusy) return;                             // the beforeinput our own execCommand fires
+
+  const li = currentLi();
+
+  // Empty bullet → step out one nesting level (mirrors the keydown handler).
+  if (li && liIsEmpty(li)) {
+    e.preventDefault();
+    const target = outdentLi(li);
+    if (target) placeCaretIn(target);
+    updateNoteBodyPlaceholder();
+    scheduleSave();
+    return;
+  }
+  // Caret at the very start of a non-empty bullet → leave the list.
+  if (li && caretAtStartOfLi(li)) {
+    e.preventDefault();
+    forceCheckpointBoundary();
+    const target = outdentLi(li);
+    if (target) placeCaretIn(target);
+    updateNoteBodyPlaceholder();
+    scheduleSave();
+    return;
+  }
+
+  // Everything else: force a real new block (never a soft break), so a single
+  // Return always starts a new line/bullet/checkbox.
+  const doneLi = (li && li.classList.contains("done") && li.parentElement?.classList.contains("task-list")) ? li : null;
+  const atStart = doneLi ? caretAtStartOfLi(li) : false;
+  e.preventDefault();
+  forceCheckpointBoundary();
+  enterFallbackBusy = true;
+  document.execCommand("insertParagraph");
+  enterFallbackBusy = false;
+
+  // A brand-new checklist item must start UNCHECKED, even when split off a
+  // checked one — the split copies the whole <li class="done">. Strip 'done'
+  // from the freshly-created item (the empty one the caret moved into, or the
+  // empty one left above when splitting at the very start of the line).
+  if (doneLi) {
+    const fresh = atStart ? doneLi.previousElementSibling : currentLi();
+    if (fresh && fresh.tagName === "LI" && fresh !== doneLi) fresh.classList.remove("done");
+  }
+  updateNoteBodyPlaceholder();
+  scheduleSave();
 });
 
 // ── Floating format bar ───────────────────────────────────────────────────────
