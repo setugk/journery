@@ -436,7 +436,7 @@ const CHANGELOG = [
     "Keyboard shortcuts for text styles — on Mac ⌥⌘1, 2, 3 for headings, +4 for a quote, +0 for paragraph (Ctrl+Shift on Windows/Linux).",
     "Code blocks got a slabbier monospace font and a copy button — hover a block to copy its contents in one click.",
     "The save button now shows a spinner while your note is auto-saving and settles back to a checkmark once it's saved — so you can see it's handled without ever pressing it.",
-    "Fixed on phones: a single Return now reliably starts a new line or bullet (no more double-tapping), a new checkbox always starts unchecked even right below a ticked one, and the note menu's Delete (and its other actions) now work on the first tap.",
+    "Fixed on phones: a single Return reliably starts a new line or bullet (no more double-tapping), Return on an empty bullet leaves the list just like on desktop, a new checkbox always starts unchecked even right below a ticked one, and the note menu's Delete and other actions now work on the first tap.",
     "Bug fixes & improvements",
   ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [
@@ -3714,12 +3714,12 @@ function caretAtStartOfLi(li) {
   return test.toString() === '';
 }
 
-// A real Enter keydown just fired (physical/desktop keyboard). The beforeinput
-// fallback below reads this to stand down and let this handler own the press.
-let lastEnterKeydownAt = 0;
-let enterFallbackBusy = false;   // guards against the beforeinput our own execCommand fires
+// All Enter/Return handling lives in the beforeinput listener below, NOT here —
+// keydown is unreliable on virtual keyboards (keyCode 229 during autocorrect), so
+// keying Enter off it broke lists/checklists on mobile. beforeinput fires reliably
+// on every engine and its inputType distinguishes Enter from Shift+Enter.
+let enterBusy = false;   // guards against the beforeinput our own execCommand fires
 noteBody.addEventListener("keydown", e => {
-  if (e.key === "Enter") lastEnterKeydownAt = performance.now();
   if (e.key === "Tab") {
     e.preventDefault();
     // In a list, Tab/Shift+Tab nest/un-nest the item (like every other editor).
@@ -3758,64 +3758,7 @@ noteBody.addEventListener("keydown", e => {
     }
   }
 
-  // Shift+Enter → a soft line break within the current line / list item: a new
-  // line aligned with the text, NOT a new bullet/number (the standard editor
-  // behavior). Chromium does this natively, but WebKit (Safari/iOS) instead
-  // splits into a new <li> (or a new <div> in plain text), so we do it
-  // ourselves. execCommand('insertLineBreak') is the one approach that's both
-  // correct AND identical across engines here (verified in Chromium + WebKit) —
-  // manual <br>-insertion mis-positions the caret after a trailing <br>.
-  if (e.key === "Enter" && e.shiftKey) {
-    e.preventDefault();
-    forceCheckpointBoundary();  // a soft break is its own undo step
-    document.execCommand('insertLineBreak');
-    return;
-  }
-
-  // Enter on an EMPTY bullet steps out one nesting level (and off the list
-  // entirely at the top level) instead of spawning another empty bullet —
-  // the standard "Enter twice to leave the list" behavior. On a bullet with
-  // text, Enter falls through to the browser's native new-item-at-same-level.
-  if (e.key === "Enter" && !e.shiftKey) {
-    const li = currentLi();
-    if (li && liIsEmpty(li)) {
-      e.preventDefault();
-      const target = outdentLi(li);   // moved <li> (nested) or new <div> (top level)
-      if (target) placeCaretIn(target);
-      updateNoteBodyPlaceholder();
-      scheduleSave();
-      return;
-    }
-    // Caret at the very START of a non-empty bullet → leave the list, turning
-    // this line into a plain paragraph — a keyboard way OUT of a bullet (matching
-    // the empty-bullet exit above). Without this, native Enter here just inserts a
-    // blank bullet above. outdentLi splits the list correctly if we're mid-list.
-    // (Empty bullets are already handled by the branch above.)
-    if (li && caretAtStartOfLi(li)) {
-      e.preventDefault();
-      forceCheckpointBoundary();
-      const target = outdentLi(li);
-      if (target) placeCaretIn(target);
-      updateNoteBodyPlaceholder();
-      scheduleSave();
-      return;
-    }
-    // A brand-new checklist item must start UNCHECKED, even when split off a
-    // checked one — the browser's native Enter copies the whole <li class="done">.
-    // Let the split happen, then strip 'done' from the freshly-created item: the
-    // empty one the caret moves into (Enter at end/middle) or the empty one left
-    // above (Enter at the very start of the line).
-    if (li && li.classList.contains('done') && li.parentElement?.classList.contains('task-list')) {
-      const atStart = caretAtStartOfLi(li);
-      requestAnimationFrame(() => {
-        const fresh = atStart ? li.previousElementSibling : currentLi();
-        if (fresh && fresh.tagName === 'LI' && fresh !== li) {
-          fresh.classList.remove('done');
-          scheduleSave();
-        }
-      });
-    }
-  }
+  // Enter/Return is handled entirely in the beforeinput listener below.
 
   if (e.metaKey || e.ctrlKey) {
     const k = e.key.toLowerCase();
@@ -3845,34 +3788,41 @@ noteBody.addEventListener("keydown", e => {
   }
 });
 
-// Enter/Return fallback for virtual keyboards (iOS/Android). While autocorrect is
-// pending, the on-screen keyboard fires keydown with keyCode 229 / key
-// "Unidentified" — never "Enter" — so the handler above is skipped entirely, and
-// the browser's raw action is sometimes a soft <br> instead of a new block (the
-// "press Return twice" bug) and a split checklist item keeps its checked state.
-// beforeinput's inputType IS reliable there, so use it as a fallback. It stands
-// down whenever a real Enter keydown just fired (desktop and hardware keyboards
-// stay on the keydown path above, untouched), so it only engages when keydown
-// didn't see the Enter — i.e. exactly the virtual-keyboard case.
+// Enter/Return — the single handler for both desktop and mobile. keydown can't be
+// trusted on virtual keyboards (keyCode 229 during autocorrect), but beforeinput
+// fires reliably everywhere, and its inputType tells a hard Return
+// (insertParagraph) apart from a soft break (insertLineBreak = Shift+Enter). Touch
+// keyboards have no Shift, and iOS mislabels a plain Return as insertLineBreak, so
+// on touch every Return is a hard new block. We always preventDefault and perform
+// the action ourselves, so a single Return behaves identically on every device.
 noteBody.addEventListener("beforeinput", e => {
   if (e.inputType !== "insertParagraph" && e.inputType !== "insertLineBreak") return;
-  if (performance.now() - lastEnterKeydownAt < 100) return;  // a real Enter keydown owns this press
-  if (enterFallbackBusy) return;                             // the beforeinput our own execCommand fires
+  if (enterBusy) return;   // the nested beforeinput our own execCommand fires
+  e.preventDefault();
+
+  // Soft line break: a genuine Shift+Enter on a device that has a Shift key. A new
+  // line aligned with the text, not a new bullet/number.
+  if (!isTouch && e.inputType === "insertLineBreak") {
+    forceCheckpointBoundary();  // a soft break is its own undo step
+    enterBusy = true; document.execCommand("insertLineBreak"); enterBusy = false;
+    scheduleSave();
+    return;
+  }
 
   const li = currentLi();
 
-  // Empty bullet → step out one nesting level (mirrors the keydown handler).
+  // Empty bullet → step out one nesting level (off the list entirely at the top
+  // level) instead of spawning another empty bullet — "Enter twice to leave".
   if (li && liIsEmpty(li)) {
-    e.preventDefault();
-    const target = outdentLi(li);
+    const target = outdentLi(li);   // moved <li> (nested) or new <div> (top level)
     if (target) placeCaretIn(target);
     updateNoteBodyPlaceholder();
     scheduleSave();
     return;
   }
-  // Caret at the very start of a non-empty bullet → leave the list.
+  // Caret at the very start of a non-empty bullet → leave the list, turning this
+  // line into a plain paragraph (a keyboard way OUT of a bullet).
   if (li && caretAtStartOfLi(li)) {
-    e.preventDefault();
     forceCheckpointBoundary();
     const target = outdentLi(li);
     if (target) placeCaretIn(target);
@@ -3881,20 +3831,18 @@ noteBody.addEventListener("beforeinput", e => {
     return;
   }
 
-  // Everything else: force a real new block (never a soft break), so a single
-  // Return always starts a new line/bullet/checkbox.
+  // Everything else → a real new block (new bullet/line/checkbox), never a soft
+  // break. execCommand('insertParagraph') is exactly the browser's native Enter,
+  // so headings, quotes, and numbered-list continuation all keep working.
   const doneLi = (li && li.classList.contains("done") && li.parentElement?.classList.contains("task-list")) ? li : null;
   const atStart = doneLi ? caretAtStartOfLi(li) : false;
-  e.preventDefault();
   forceCheckpointBoundary();
-  enterFallbackBusy = true;
-  document.execCommand("insertParagraph");
-  enterFallbackBusy = false;
+  enterBusy = true; document.execCommand("insertParagraph"); enterBusy = false;
 
-  // A brand-new checklist item must start UNCHECKED, even when split off a
-  // checked one — the split copies the whole <li class="done">. Strip 'done'
-  // from the freshly-created item (the empty one the caret moved into, or the
-  // empty one left above when splitting at the very start of the line).
+  // A brand-new checklist item must start UNCHECKED, even when split off a checked
+  // one — the split copies the whole <li class="done">. Strip 'done' from the
+  // freshly-created item (the empty one the caret moved into, or the empty one
+  // left above when splitting at the very start of the line).
   if (doneLi) {
     const fresh = atStart ? doneLi.previousElementSibling : currentLi();
     if (fresh && fresh.tagName === "LI" && fresh !== doneLi) fresh.classList.remove("done");
