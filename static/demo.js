@@ -111,11 +111,17 @@
          null, ["getting-started"], recent(43)),
       mk("Host your own Journery",
          "Like it? Journery is free and open-source, so you can run your own copy and keep your notes on <b>your</b> hardware, never someone else's server.<br><br>" +
-         "It's a single command with Docker, and:" +
+         "If you have <b>Docker</b>, it's one command:" +
+         "<pre><code>docker run -d --name journery -p 5050:5000 -v ~/journery-data:/data ghcr.io/setugk/journery</code></pre>" +
+         "Then open <b>http://localhost:5050</b> and you're journaling. Your notes live in the <b>journery-data</b> folder you just picked, and nothing ever leaves your machine.<br><br>" +
+         "Not comfortable in a terminal, or don't have Docker? Paste this to an AI assistant like Claude, on the computer you want to host it on:" +
+         "<blockquote>Set up Journery, an open-source self-hosted journaling app, on this computer. Keep all my notes on this machine and never send my data to any cloud. Check whether Docker is installed and install it if it isn't, then run the image ghcr.io/setugk/journery on port 5050 with my notes stored in a folder here. When it's done, tell me the URL to open, where my notes are saved, and how to back them up.</blockquote>" +
+         "One thing worth knowing: Journery has <b>no login by default</b>. That's fine on your own computer or home network. Before you open it to the wider internet, add a password with the <b>JOURNERY_USER</b> and <b>JOURNERY_PASS</b> settings, or put it behind your own login.<br><br>" +
+         "What you get:" +
          "<ul><li>Your data stays in a folder <b>you</b> choose: your computer, a NAS, anywhere</li>" +
-         "<li>Add a password, or put it behind your own login</li>" +
-         "<li>Reach it from every device, all in sync</li></ul>" +
-         "Grab it and the step-by-step setup at <b>github.com/setugk/journery</b>.",
+         "<li>Reach it from every device, all in sync</li>" +
+         "<li>Automatic nightly backups from a single line</li></ul>" +
+         "The full guide, with Docker Compose, backups, and remote access, is at <b>github.com/setugk/journery</b>.",
          null, ["getting-started"], recent(45)),
       mk("Morning pages",
          "Slow start today. Coffee, then twenty minutes of just writing whatever came to mind.\n\nNoticed I think more clearly on paper than on screen. Worth keeping this up.",

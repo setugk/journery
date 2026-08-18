@@ -33,7 +33,7 @@ DEMO_MODE       = os.environ.get("DEMO_MODE") == "1"
 # traffic. Never set this on prod/beta (self-hosted instances get no
 # analytics of any kind — see README's privacy promise). Empty = no beacon.
 CF_BEACON_TOKEN = os.environ.get("CF_BEACON_TOKEN", "")
-APP_VERSION     = "1.31.29"
+APP_VERSION     = "1.31.36"
 # Tie asset cache-busting to the app version, so caches invalidate only when we
 # actually ship — not on every container restart (which str(time.time()) did).
 STATIC_VERSION  = APP_VERSION
@@ -730,9 +730,9 @@ def manifest():
 # reads. NO blind full-body overwrite, NO permanent delete. Deleting only ever
 # moves a note to Trash (30-day recovery, same as the UI).
 #
-# Cloudflare (one-time, like /shared/*): add an Access BYPASS for
-# journery.setugk.com/mcp — the bearer token is the real gate, and an interactive
-# Access OTP would block automated clients.
+# Cloudflare (one-time, like /shared/*): if the app sits behind Cloudflare Access,
+# add an Access BYPASS for the /mcp path — the bearer token is the real gate, and
+# an interactive Access OTP would block automated clients.
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
 

@@ -1021,7 +1021,9 @@ body {
 .note-body-wrap { position: relative; }
 .note-body-placeholder {
   position: absolute;
-  top: 14px; left: 28px; right: 28px;
+  /* Match .note-body-input's padding-top so the placeholder text shares the
+     caret's line box (same font-size + 1.7 line-height) and the two align. */
+  top: 16px; left: 28px; right: 28px;
   pointer-events: none;
   user-select: none;
   font-size: var(--fs-16); line-height: 1.7;

@@ -437,6 +437,10 @@ const CHANGELOG = [
     "Code blocks got a slabbier monospace font and a copy button — hover a block to copy its contents in one click.",
     "The save button now shows a spinner while your note is auto-saving and settles back to a checkmark once it's saved — so you can see it's handled without ever pressing it.",
     "Fixed on phones: a single Return reliably starts a new line or bullet (no more double-tapping), Return on an empty bullet leaves the list just like on desktop, a new checkbox always starts unchecked even right below a ticked one, and the note menu's Delete and other actions now work on the first tap.",
+    "Smoother list editing — press Return at the start of a list item to open a blank line above it, Backspace at the start to pull that item out of the list, and numbered lists now renumber themselves continuously when you split or rearrange them.",
+    "Fixed a spacing glitch when editing older or pasted-in entries — paragraphs no longer stretch apart or push bold words onto their own line the first time you hit Return.",
+    "Dividers are easier — there's a new divider button in the formatting toolbar, and typing --- to make one now works anywhere in a note, including right after a checklist or heading.",
+    "Deleting a note now moves you to the next note in the list instead of leaving a blank editor with the old note's title stuck at the top; if the list is empty, it drops you back to Recents.",
     "Bug fixes & improvements",
   ]},
   { version: "1.30", date: "Aug 4, 2026", changes: [
@@ -1917,7 +1921,7 @@ function recentsPaneTitle() {
   return `Recents · ${RECENTS_RANGE_LABEL[state.recentsRange] || RECENTS_RANGE_LABEL.week}`;
 }
 
-navRecents.addEventListener("click", () => {
+function goToRecents() {
   state.navHistory = [];
   state.context = { type: "recents", id: null, label: "Recents" };
   state.searchQuery = "";
@@ -1929,7 +1933,34 @@ navRecents.addEventListener("click", () => {
   loadNotes();
   setMobileView("notes");
   notesList.scrollTop = 0;
-});
+}
+navRecents.addEventListener("click", goToRecents);
+
+// The note to land on after `deletedId` leaves the current view: its neighbour
+// below in the list, else the one above, else null (the view is now empty).
+// Must be called BEFORE the note is removed from state.notes.
+function neighbourAfterDelete(deletedId) {
+  const list = sortedNotes();
+  const i = list.findIndex(n => n.id === deletedId);
+  if (i < 0) return null;
+  return list[i + 1] || list[i - 1] || null;
+}
+
+// Where the editor goes after deleting the open note: open the neighbour
+// (desktop), fall back to Recents when the view is now empty. On mobile there's
+// no persistent editor pane, so return to the notes list with the editor cleared.
+function landAfterDelete(neighbour) {
+  if (neighbour && !isMobile()) {
+    openNote(neighbour);
+  } else if (neighbour) {
+    showEditorEmpty();
+    renderNotesList();
+    setMobileView("notes");
+  } else {
+    showEditorEmpty();
+    goToRecents();
+  }
+}
 
 $("nav-trash").addEventListener("click", navigateToTrash);
 
@@ -2429,6 +2460,13 @@ function showEditorEmpty() {
   editorBody.classList.add("hidden");
   editorEmpty.classList.remove("hidden");
   toolbarBtns.forEach(b => b.style.visibility = "hidden");
+  // Clear the title so the pinned header title (mirrored next to the back chevron
+  // when the real title scrolls out of view) doesn't linger from the note that was
+  // just closed/deleted — the IntersectionObserver won't re-fire while the body is
+  // hidden, so reset it by hand.
+  noteTitle.value = "";
+  titleOutOfView = false;
+  applyHeaderTitle();
 }
 
 function showEditorBody() {
@@ -2443,6 +2481,11 @@ async function openNote(note) {
   if (state.dirty) await saveNoteNow();
   state.note = note;
   noteTitle.value = note.title || "";
+  // Sync the pinned header title to this note now. The IntersectionObserver only
+  // fires on an intersection CHANGE, so opening a note while already scrolled to
+  // the top wouldn't refresh it — leaving the previous note's title as stale text.
+  titleOutOfView = false;
+  applyHeaderTitle();
   // Loading a note's content is not a user edit — suppress the undo/redo
   // MutationObserver across both this synchronous clear and the deferred
   // rAF load below, then reset history once the real content has landed.
@@ -2744,12 +2787,16 @@ function mdBlockText(block) {
 }
 
 // Text on the CURRENT VISUAL LINE, from its start to the caret. The line starts
-// at the nearest preceding <br> (or the block start if none). Needed because a
-// note's lines aren't always their own block: pasted/imported content puts
-// several lines inside one block joined by <br>, and reading from the block
-// start would prepend the earlier lines' text — so "* " on line 3 came out as
-// "line1line2*" and the marker check never matched. Note: Range.toString() drops
-// <br> entirely (no "\n"), so we must walk the nodes and reset at each <br>.
+// at the nearest preceding line boundary — a <br> OR a block-level element edge —
+// (or the block start if none). Needed because a note's lines aren't always their
+// own block: pasted/imported content puts several lines inside one block joined by
+// <br>, and — when the caret sits directly under the editor after a list/heading
+// (so the active "block" is noteBody itself) — reading from the start would prepend
+// EVERY earlier line's text. That's the "'---' on the line after a checklist just
+// stays '---'" bug: the line came out as "…checkboxes!--", never "--", so the
+// divider/list marker never matched. Resetting at block boundaries too (same set
+// mdInsertDivider uses) isolates the real current line. Note: Range.toString()
+// drops <br> entirely (no "\n"), so we must walk the nodes ourselves.
 function mdLineBeforeCaret(block, range) {
   const pre = document.createRange();
   pre.selectNodeContents(block);
@@ -2760,7 +2807,8 @@ function mdLineBeforeCaret(block, range) {
     for (const child of node.childNodes) {
       if (child.nodeName === 'BR') line = '';
       else if (child.nodeType === Node.TEXT_NODE) line += child.textContent;
-      else walk(child);
+      else if (MD_BLOCK_TAGS.has(child.nodeName)) { line = ''; walk(child); line = ''; }  // a completed block above is a previous line
+      else walk(child);   // inline element (b/i/a/code…) — descend, keep the line going
     }
   })(frag);
   return line;
@@ -3212,29 +3260,61 @@ noteBody.addEventListener('beforeinput', e => {
   }
 });
 
-// WebKit inserts a character typed at the very start of the first block OUTSIDE
-// that block — as a loose text node directly under the editor — which visually
-// splits the line ("*" on its own line, the text pushed below). Heal it: fold any
-// non-empty top-level bare text node into the adjacent block so the structure
-// stays all-blocks. Runs before the markdown checks so they see a clean line.
+// Keep the editor's top level all-blocks. Two things leave loose inline content
+// directly under the editor: (a) WebKit inserts a character typed at the very
+// start of the first block OUTSIDE it, as a bare text node ("*" on its own line,
+// text pushed below); (b) seeded/pasted/imported notes store paragraphs as bare
+// text + inline tags (<b>/<a>/<br>) with no wrapping <div>. If left, a later edit
+// lets the browser wrap only PART of a run — orphaning inline tags onto their own
+// line and stacking paragraph margins on the surviving <br><br> (the "spacing
+// stretches on Enter" bug). Fix: consolidate each maximal run of top-level inline
+// content into ONE paragraph <div>. Runs before the markdown checks so they see a
+// clean line.
+const NTL_BLOCK_TAGS = new Set(['DIV','P','UL','OL','LI','H1','H2','H3','H4','H5','H6',
+                                'HR','BLOCKQUOTE','PRE','TABLE','FIGURE','IMG']);
+function ntlIsBlock(n) { return n.nodeType === Node.ELEMENT_NODE && NTL_BLOCK_TAGS.has(n.nodeName); }
+function ntlIsWsText(n) { return n.nodeType === Node.TEXT_NODE && n.textContent.trim() === ''; }
+
 function normalizeTopLevel() {
   let hasStray = false;
   for (let n = noteBody.firstChild; n; n = n.nextSibling) {
-    if (n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== "") { hasStray = true; break; }
+    if (ntlIsBlock(n) || ntlIsWsText(n)) continue;   // blocks + insignificant whitespace are fine
+    hasStray = true; break;
   }
   if (!hasStray) return;
+
   const sel = window.getSelection();
   const saved = sel && sel.rangeCount
     ? { c: sel.getRangeAt(0).startContainer, o: sel.getRangeAt(0).startOffset } : null;
+
   let n = noteBody.firstChild;
   while (n) {
-    const next = n.nextSibling;
-    if (n.nodeType === Node.TEXT_NODE && n.textContent.trim() !== "") {
-      if (next && next.nodeName === "DIV") next.insertBefore(n, next.firstChild);  // node persists → caret ok
-      else { const div = document.createElement("div"); n.replaceWith(div); div.appendChild(n); }
+    if (ntlIsBlock(n) || ntlIsWsText(n)) { n = n.nextSibling; continue; }
+    // Collect this whole run of inline nodes (text + inline elements incl. <br>),
+    // stopping at the next block-level sibling (or the end).
+    const run = [];
+    let runHasBr = false;
+    let cur = n;
+    while (cur && !ntlIsBlock(cur)) {
+      if (cur.nodeName === 'BR') runHasBr = true;
+      run.push(cur);
+      cur = cur.nextSibling;
     }
-    n = next;
+    // A break-free continuation run (e.g. WebKit's typed-at-start stray char)
+    // folds into the adjacent <div> so the line stays whole; a run carrying its
+    // own <br> paragraph breaks becomes its own <div>, so margins never stack on
+    // the breaks. Nodes are MOVED (same objects), so a saved caret survives.
+    if (!runHasBr && cur && cur.nodeName === 'DIV') {
+      const anchor = cur.firstChild;
+      run.forEach(node => cur.insertBefore(node, anchor));
+    } else {
+      const div = document.createElement('div');
+      run[0].before(div);
+      run.forEach(node => div.appendChild(node));
+    }
+    n = cur;   // resume at the block that stopped the run (or null)
   }
+
   if (saved) {
     try {
       const r = document.createRange();
@@ -3247,6 +3327,7 @@ function normalizeTopLevel() {
 // input fallback: catches autocorrect-triggered replacements and non-beforeinput browsers
 noteBody.addEventListener("input", () => {
   normalizeTopLevel();
+  mergeAdjacentLists(noteBody);   // renumber fragmented ordered lists (see helper)
   updateNoteBodyPlaceholder();
   const block = mdActiveBlock();
   if (block) {
@@ -3527,8 +3608,8 @@ noteBody.addEventListener("paste", e => {
 // Own the copy/cut side too. We do TWO things:
 //  (a) stash a clean clone of the selection in an in-memory buffer, and
 //  (b) try to write clean HTML + markdown to the OS clipboard.
-// (b) is best-effort: Firefox — and privacy extensions like the ones in Setu's
-// profile — refuse to let a page override the clipboard on copy, so setData is
+// (b) is best-effort: Firefox — and some privacy extensions — refuse to let a
+// page override the clipboard on copy, so setData is
 // silently ignored and the OS clipboard keeps Firefox's mangled classless <li>
 // soup. (a) is the reliable path: the buffer never touches the OS clipboard, so
 // the paste handler can recover the real structure for in-app copy-paste. The
@@ -3651,6 +3732,31 @@ function outdentLi(li) {
   }
 }
 
+// Merge directly-adjacent sibling lists of the same kind into one. Each <ol>
+// numbers its own children via CSS `list-style: decimal`, so two touching <ol>s
+// each restart at 1 ("1,2,3" then "1,2") — this is what breaks numbering when a
+// numbered list is inserted in the middle of another, or the block above one is
+// deleted so two lists end up adjacent. Merging renumbers them continuously.
+// Only merges lists of the SAME tag AND same task-list-ness (so a bullet list
+// and a checklist that happen to touch stay separate). Moves nodes (never
+// clones), so a caret inside a moved <li> survives. Recurses into <li>s to catch
+// adjacent nested sublists too.
+function mergeAdjacentLists(root) {
+  let child = (root || noteBody).firstElementChild;
+  while (child) {
+    const next = child.nextElementSibling;
+    const isList = child.tagName === 'UL' || child.tagName === 'OL';
+    if (isList && next && next.tagName === child.tagName &&
+        next.classList.contains('task-list') === child.classList.contains('task-list')) {
+      while (next.firstChild) child.appendChild(next.firstChild);
+      next.remove();
+      continue;   // re-check the merged list against its NEW next sibling
+    }
+    if (isList || child.tagName === 'LI') mergeAdjacentLists(child);
+    child = child.nextElementSibling;
+  }
+}
+
 // Nest/un-nest the caret's list item, preserving the caret. Shared by the Tab
 // key and the format-bar indent/outdent buttons, so both behave identically —
 // and both go through indentLi/outdentLi, which carry the task-list class onto
@@ -3731,30 +3837,25 @@ noteBody.addEventListener("keydown", e => {
     return;
   }
 
-  // Backspace at the start of the FIRST item of a top-level list, when native
-  // would destroy adjacent structure: (a) at note-start there's no previous line
-  // to merge into, so the first bullet feels un-deletable; (b) when the list sits
-  // directly under a divider, native backspace eats BOTH the bullet and the <hr>.
-  // In both cases, un-bullet the item into a plain line (outdentLi) and leave the
-  // divider alone — a SECOND backspace on that plain line then removes the <hr>
-  // natively. Bullets elsewhere keep their normal native backspace/merge.
+  // Backspace at the start of a list item's text un-bullets it instead of
+  // merging into the previous line: a nested item lifts one level, a top-level
+  // item drops out of the list into a plain line (both via outdentLi). The items
+  // below stay in the list and renumber automatically (single <ol>, CSS decimal),
+  // so removing bullet 1 makes bullet 2 the new bullet 1. This also sidesteps the
+  // old destructive-native cases (first item at note-start had nothing to merge
+  // into; an item directly under a divider let native backspace eat both the
+  // bullet AND the <hr>) — outdent never touches the divider.
   if (e.key === "Backspace" && !e.shiftKey) {
     const li = currentLi();
     if (li && caretAtStartOfLi(li)) {
-      // Climb to the top-level list block (direct child of noteBody), so this
-      // works whether the item's list is top-level, nested, or wrapped.
-      let top = li.closest('ul,ol');
-      while (top && top.parentElement && top.parentElement !== noteBody) top = top.parentElement;
-      const atTopStart = top && caretAtStartOfLi(top);   // caret at the very start of the whole list
-      const afterHr    = top && top.previousElementSibling && top.previousElementSibling.nodeName === 'HR';
-      if (atTopStart && (caretAtStartOfNote() || afterHr)) {
-        e.preventDefault();
-        const target = outdentLi(li);
-        if (target) placeCaretIn(target);
-        updateNoteBodyPlaceholder();
-        scheduleSave();
-        return;
-      }
+      e.preventDefault();
+      forceCheckpointBoundary();
+      const target = outdentLi(li);
+      if (target) placeCaretIn(target);
+      mergeAdjacentLists(noteBody);
+      updateNoteBodyPlaceholder();
+      scheduleSave();
+      return;
     }
   }
 
@@ -3820,12 +3921,18 @@ noteBody.addEventListener("beforeinput", e => {
     scheduleSave();
     return;
   }
-  // Caret at the very start of a non-empty bullet → leave the list, turning this
-  // line into a plain paragraph (a keyboard way OUT of a bullet).
+  // Caret at the very start of a non-empty bullet → insert a fresh EMPTY item
+  // directly above and keep the caret on it, pushing the existing text down one
+  // line (bullet [1] becomes an empty line with the caret; its old text is now
+  // bullet [2]; ordered lists renumber via CSS). The way OUT of the list is the
+  // double-Enter on that empty line (handled by the liIsEmpty branch above). A
+  // plain <li> inherits the list's kind — an unchecked checkbox in a task-list.
   if (li && caretAtStartOfLi(li)) {
     forceCheckpointBoundary();
-    const target = outdentLi(li);
-    if (target) placeCaretIn(target);
+    const fresh = document.createElement("li");
+    fresh.appendChild(document.createElement("br"));
+    li.before(fresh);
+    placeCaretIn(fresh);
     updateNoteBodyPlaceholder();
     scheduleSave();
     return;
@@ -4110,6 +4217,33 @@ function applyFormat(fmt) {
     const current = document.queryCommandValue('formatBlock').toLowerCase();
     const block = fmt === 'p' ? 'div' : fmt === 'quote' ? 'blockquote' : fmt;
     document.execCommand('formatBlock', false, current === block ? 'div' : block);
+    scheduleSave();
+    if (!isTouch) requestAnimationFrame(showFormatBar);
+    return;
+  }
+  if (fmt === 'divider') {
+    // Insert a horizontal rule as its own block, with a fresh line under it for
+    // the caret. An empty current line BECOMES the divider (same as typing ---);
+    // a line with content — or a list/heading — gets the divider right after it.
+    // mdActiveBlock is always a direct child of noteBody (the whole <ul>/<h2>/…),
+    // so this never splits mid-content and never drops a divider inside a list.
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+    const block = mdActiveBlock();
+    const hr = document.createElement('hr');
+    const after = document.createElement('div');
+    after.appendChild(document.createElement('br'));
+    if (!block || block === noteBody) {
+      const r = sel.getRangeAt(0); r.collapse(false);
+      r.insertNode(after); r.insertNode(hr);
+    } else {
+      const empty = !block.textContent.trim() && !block.querySelector('img,li');
+      if (empty) block.replaceWith(hr); else block.insertAdjacentElement('afterend', hr);
+      hr.insertAdjacentElement('afterend', after);
+    }
+    const r = document.createRange(); r.setStart(after, 0); r.collapse(true);
+    sel.removeAllRanges(); sel.addRange(r);
+    updateNoteBodyPlaceholder();
     scheduleSave();
     if (!isTouch) requestAnimationFrame(showFormatBar);
     return;
@@ -4670,14 +4804,14 @@ $("delete-note-btn").addEventListener("click", async () => {
   }
   if (!confirm(`Move "${state.note.title || "Untitled"}" to Trash?`)) return;
   overflowMenu.classList.add("hidden");
-  await api("DELETE", `/api/notes/${state.note.id}`);
-  state.notes = state.notes.filter(n => n.id !== state.note.id);
+  const deletedId = state.note.id;
+  const neighbour = neighbourAfterDelete(deletedId);   // pick BEFORE removing it
+  await api("DELETE", `/api/notes/${deletedId}`);
+  state.notes = state.notes.filter(n => n.id !== deletedId);
   state.note = null;
   state.dirty = false;
   clearTimeout(saveTimer);
   renderNotesList();
-  showEditorEmpty();
-  setMobileView("notes");
   state.tags = await api("GET", "/api/tags");
   state.trashCount++;
   $("trash-count").textContent = state.trashCount || "";
@@ -4688,6 +4822,7 @@ $("delete-note-btn").addEventListener("click", async () => {
   all.forEach(n => { const y = new Date(n.created_at).getFullYear(); yearCounts[y] = (yearCounts[y] || 0) + 1; });
   state.noteYears = Object.entries(yearCounts).sort((a,b) => b[0]-a[0]).map(([year,count]) => ({ year: parseInt(year), count }));
   renderTimeline();
+  landAfterDelete(neighbour);   // open the next note, or fall back to Recents
   showToast("Moved to Trash");
 });
 
@@ -5080,16 +5215,17 @@ $("ctx-delete-btn").addEventListener("click", async () => {
   hideNoteCtxMenu();
   if (!n) return;
   if (!confirm(`Move "${n.title || "Untitled"}" to Trash?`)) return;
+  const wasOpen = state.note && state.note.id === n.id;
+  const neighbour = wasOpen ? neighbourAfterDelete(n.id) : null;   // pick BEFORE removing it
   await api("DELETE", `/api/notes/${n.id}`);
   state.notes = state.notes.filter(x => x.id !== n.id);
-  if (state.note && state.note.id === n.id) {
+  if (wasOpen) {
     state.note = null;
     state.dirty = false;
     clearTimeout(saveTimer);
-    showEditorEmpty();
-    setMobileView("notes");
   }
   renderNotesList();
+  if (wasOpen) landAfterDelete(neighbour);   // open the next note, or fall back to Recents
   state.tags = await api("GET", "/api/tags");
   state.trashCount++;
   $("trash-count").textContent = state.trashCount || "";
