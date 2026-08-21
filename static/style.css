@@ -142,7 +142,22 @@ body {
 /* No border-radius — the logo SVG already has its own rounded corners (rx=4);
    adding CSS rounding on top over-rounded it vs the favicon/app icon. */
 .app-logo { width: 20px; height: 20px; vertical-align: middle; margin-right: 8px; position: relative; top: -1px; user-select: none; }
-.sidebar-header-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.sidebar-header-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+/* Primary "New note" action, labeled + in the theme accent, so the app's core
+   verb is obvious from the sidebar header (desktop). Hidden on mobile, where the
+   floating island owns New note. */
+.sidebar-newnote-btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 30px; padding: 0 8px;
+  background: none; color: var(--accent);
+  border: none; border-radius: 8px; cursor: pointer;
+  font-size: var(--fs-13); font-weight: 600; letter-spacing: -0.01em;
+  transition: background 0.1s; flex-shrink: 0;
+}
+.sidebar-newnote-btn:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.sidebar-newnote-btn:active { opacity: 0.7; }
+.sidebar-newnote-btn svg { width: 15px; height: 15px; }
 
 .sidebar-search {
   padding: 12px 12px 8px 24px;
@@ -1436,8 +1451,19 @@ body.note-view-mode .app { display: none; }
   align-items: center; justify-content: center; gap: 12px;
   color: var(--text-faint);
 }
-.editor-empty-state p { font-size: var(--fs-13); }
+.editor-empty-state p { font-size: var(--fs-13); max-width: 280px; text-align: center; line-height: 1.6; }
 .editor-empty-state.hidden { display: none; }
+.editor-empty-cta {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 4px; padding: 9px 16px 9px 13px;
+  background: var(--accent); color: var(--accent-fg);
+  border: none; border-radius: 9px; cursor: pointer;
+  font-size: var(--fs-14); font-weight: 600; letter-spacing: -0.01em;
+  transition: opacity 0.1s;
+}
+.editor-empty-cta:hover { opacity: 0.9; }
+.editor-empty-cta:active { opacity: 0.75; }
+.editor-empty-cta svg { width: 16px; height: 16px; }
 .editor-body.hidden { display: none; }
 
 /* ── Modals ──────────────────────────────────────────────────────────── */

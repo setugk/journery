@@ -431,6 +431,7 @@ const SETTINGS_SECTION_LABELS = {
 // with smaller stuff rolled up as "Bug fixes & improvements". Newest first.
 const CHANGELOG = [
   { version: "1.31", date: "Aug 4, 2026", changes: [
+    "Clearer way to start writing — the New note button in the sidebar is now labeled and colored, and the empty editor greets you with a New note button too, so it's obvious how to begin a fresh entry.",
     "Connect AI to your journal (MCP) — a new opt-in Connections setting lets an AI assistant read, search, create, tag, and organize your notes. Works with any MCP client (Claude Code, the Claude API, and others). Give each connection its own named token, see which one is active and when it was last used, and revoke any of them any time. Off by default; an AI can never permanently delete a note.",
     "Readable in every theme — all 48 themes now meet WCAG AA text contrast, so hint text, counts, and muted labels are legible even in the darker themes that were hard to read before.",
     "Keyboard shortcuts for text styles — on Mac ⌥⌘1, 2, 3 for headings, +4 for a quote, +0 for paragraph (Ctrl+Shift on Windows/Linux).",
@@ -2174,6 +2175,7 @@ $("new-note-btn").addEventListener("click", e => {
 });
 
 $("new-note-option").addEventListener("click", () => { newItemMenu.classList.add("hidden"); newNote(); });
+$("editor-empty-newnote-btn")?.addEventListener("click", () => newNote());
 $("new-subfolder-option").addEventListener("click", () => {
   newItemMenu.classList.add("hidden");
   openFolderModal(null, state.context.type === "folder" ? state.context.id : null);
